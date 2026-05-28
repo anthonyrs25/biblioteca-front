@@ -70,6 +70,18 @@ function SistemaHome({ onDocenteDetectado }: Props) {
             {hora.toLocaleTimeString('es-EC')}
           </div>
           <Button
+            onClick={() => navigate('/sistema/reportes')}
+            icon={<BarChartOutlined />}
+            style={{
+              background: 'rgba(13,148,136,0.08)',
+              border: '1px solid rgba(13,148,136,0.25)',
+              color: '#0d9488',
+              borderRadius: 10,
+            }}
+          >
+            Reportes
+          </Button>
+          <Button
             onClick={handleLogout}
             icon={<LogoutOutlined />}
             style={{
@@ -79,18 +91,6 @@ function SistemaHome({ onDocenteDetectado }: Props) {
               borderRadius: 10,
             }}
           >
-            <Button
-              onClick={() => navigate('/sistema/reportes')}
-              icon={<BarChartOutlined />}
-              style={{
-                background: 'rgba(13,148,136,0.08)',
-                border: '1px solid rgba(13,148,136,0.25)',
-                color: '#0d9488',
-                borderRadius: 10,
-              }}
-            >
-              Reportes
-            </Button>
             Salir
           </Button>
         </div>
