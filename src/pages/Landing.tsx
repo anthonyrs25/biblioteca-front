@@ -5,11 +5,18 @@ import {
   BookOutlined,
   DesktopOutlined,
   TeamOutlined,
-  SearchOutlined,
   ArrowRightOutlined,
   ClockCircleOutlined,
   ReadOutlined,
   CalendarOutlined,
+  ArrowUpOutlined,
+  FacebookOutlined,
+  YoutubeOutlined,
+  InstagramOutlined,
+  XOutlined,
+  PhoneOutlined,
+  MailOutlined,
+  EnvironmentOutlined,
 } from '@ant-design/icons'
 import Logo from '../components/Logo'
 import { libros } from '../data/libros'
@@ -17,11 +24,24 @@ import { libros } from '../data/libros'
 function Landing() {
   const navigate = useNavigate()
   const [hora, setHora] = useState(new Date())
+  const [mostrarScrollTop, setMostrarScrollTop] = useState(false)
 
   useEffect(() => {
     const t = setInterval(() => setHora(new Date()), 1000)
     return () => clearInterval(t)
   }, [])
+
+  useEffect(() => {
+    const handleScroll = () => setMostrarScrollTop(window.scrollY > 400)
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
+
+  const irA = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   const totalLibros = libros.reduce((a, b) => a + b.totalEjemplares, 0)
   const disponibles = libros.reduce((a, b) => a + b.disponibles, 0)
@@ -30,13 +50,13 @@ function Landing() {
     <div className="landing">
 
       {/* NAVBAR */}
-      <nav className="landing-nav">
+      <nav className="landing-nav" id="inicio">
         <Logo />
         <div className="nav-links">
-          <a href="#servicios">Servicios</a>
-          <a href="#catalogo">Catálogo</a>
-          <a href="#horarios">Horarios</a>
-          <a href="#contacto">Contacto</a>
+          <button onClick={() => irA('servicios')}>Servicios</button>
+          <button onClick={() => irA('catalogo')}>Catálogo</button>
+          <button onClick={() => irA('horarios')}>Horarios</button>
+          <button onClick={() => irA('contacto')}>Contacto</button>
         </div>
         <Button
           className="btn-admin"
@@ -60,15 +80,24 @@ function Landing() {
             e innovar
           </h1>
           <p className="landing-subtitle">
-            Biblioteca Daniel Perazzo — Instituto Sudamericano.<br />
+            Biblioteca Daniel Perazzo — Instituto de Tecnologías Sudamericano.<br />
             Recursos académicos, espacio de estudio y tecnología
             al servicio de tu formación profesional.
           </p>
           <div className="hero-actions">
-            <Button className="btn-hero-primary" size="large" icon={<SearchOutlined />}>
-              Buscar en el catálogo
+            <Button
+              className="btn-hero-primary"
+              size="large"
+              icon={<BookOutlined />}
+              onClick={() => irA('catalogo')}
+            >
+              Ver catálogo
             </Button>
-            <Button className="btn-hero-secondary" size="large">
+            <Button
+              className="btn-hero-secondary"
+              size="large"
+              onClick={() => irA('servicios')}
+            >
               Ver servicios
             </Button>
           </div>
@@ -100,13 +129,13 @@ function Landing() {
             <div className="blob-card card-1">
               <BookOutlined style={{ color: '#0d9488', fontSize: 20 }} />
               <div>
-                <div className="bcard-title">Préstamo activo</div>
-                <div className="bcard-sub">Clean Code · Ing. Paul Tigre</div>
+                <div className="bcard-title">Libros disponibles</div>
+                <div className="bcard-sub">{disponibles} títulos listos para préstamo</div>
               </div>
             </div>
             <div className="blob-card card-2">
-              <span className="bcard-num" style={{ color: '#0d9488' }}>{disponibles}</span>
-              <div className="bcard-title">Libros disponibles hoy</div>
+              <span className="bcard-num" style={{ color: '#0d9488' }}>1995</span>
+              <div className="bcard-title">Establecidos en Cuenca</div>
             </div>
           </div>
         </div>
@@ -160,8 +189,13 @@ function Landing() {
           {libros.map(libro => (
             <div key={libro.codigo} className="catalogo-card">
               <div className="catalogo-top">
-                <Tag color={libro.disponibles > 0 ? 'cyan' : 'red'} style={{ borderRadius: 6 }}>
-                  {libro.disponibles > 0 ? `${libro.disponibles} disponible${libro.disponibles > 1 ? 's' : ''}` : 'No disponible'}
+                <Tag
+                  color={libro.disponibles > 0 ? 'cyan' : 'red'}
+                  style={{ borderRadius: 6 }}
+                >
+                  {libro.disponibles > 0
+                    ? `${libro.disponibles} disponible${libro.disponibles > 1 ? 's' : ''}`
+                    : 'No disponible'}
                 </Tag>
                 <span className="catalogo-categoria">{libro.categoria}</span>
               </div>
@@ -170,7 +204,7 @@ function Landing() {
               <p className="catalogo-desc">{libro.descripcion}</p>
               <div className="catalogo-footer">
                 <Statistic
-                  title="Total"
+                  title="Total ejemplares"
                   value={libro.totalEjemplares}
                   valueStyle={{ fontSize: 20, fontWeight: 800, color: '#0f172a' }}
                 />
@@ -218,23 +252,75 @@ function Landing() {
       {/* FOOTER */}
       <footer className="landing-footer" id="contacto">
         <div className="footer-content">
-          <Logo size="large" />
-          <div className="footer-info">
-            <p>Biblioteca Daniel Perazzo</p>
-            <p>Instituto Sudamericano · Cuenca, Ecuador</p>
+          <div className="footer-left">
+            <Logo size="large" dark />
+            <p className="footer-desc">
+              Formando profesionales de excelencia<br />
+              desde 1995 en Cuenca, Ecuador.
+            </p>
+            <div className="footer-redes">
+              <a href="https://facebook.com" target="_blank" rel="noreferrer" className="red-social">
+                <FacebookOutlined />
+              </a>
+              <a href="https://youtube.com" target="_blank" rel="noreferrer" className="red-social">
+                <YoutubeOutlined />
+              </a>
+              <a href="https://x.com" target="_blank" rel="noreferrer" className="red-social">
+                <XOutlined />
+              </a>
+              <a href="https://instagram.com" target="_blank" rel="noreferrer" className="red-social">
+                <InstagramOutlined />
+              </a>
+            </div>
+          </div>
+
+          <div className="footer-contacto">
+            <h4>Información de contacto</h4>
+            <div className="contacto-item">
+              <PhoneOutlined style={{ color: '#0d9488' }} />
+              <span>(593-7) 283 8323 / 284 3619 / 0996976449</span>
+            </div>
+            <div className="contacto-item">
+              <MailOutlined style={{ color: '#0d9488' }} />
+              <span>info@sudamericano.edu.ec</span>
+            </div>
+            <div className="contacto-item">
+              <MailOutlined style={{ color: '#0d9488' }} />
+              <span>relpublicaits@sudamericano.edu.ec</span>
+            </div>
+            <div className="contacto-item">
+              <EnvironmentOutlined style={{ color: '#0d9488' }} />
+              <span>Simón Bolívar y Manuel Vega Esq. Cuenca EC</span>
+            </div>
+            <div className="contacto-item">
+              <EnvironmentOutlined style={{ color: '#0d9488' }} />
+              <span>Edificio Huayna Cápac: Jaime Roldós 4-85</span>
+            </div>
+          </div>
+
+          <div className="footer-links">
+            <h4>Biblioteca</h4>
+            <button onClick={() => irA('servicios')}>Servicios</button>
+            <button onClick={() => irA('catalogo')}>Catálogo de libros</button>
+            <button onClick={() => irA('horarios')}>Horarios de atención</button>
+            <button onClick={() => navigate('/login')}>Acceso administrativo</button>
           </div>
         </div>
+
         <div className="footer-bottom">
-          <span>© 2026 Instituto Sudamericano. Todos los derechos reservados.</span>
-          <Button
-            type="link"
-            onClick={() => navigate('/login')}
-            style={{ color: '#6b7280', fontSize: 12 }}
-          >
-            Acceso administrativo
-          </Button>
+          <span>© 2026 Instituto de Tecnologías Sudamericano. Todos los derechos reservados.</span>
+          <span style={{ color: '#9ca3af', fontSize: 12 }}>
+            Biblioteca Daniel Perazzo · Cuenca, Ecuador
+          </span>
         </div>
       </footer>
+
+      {/* SCROLL TO TOP */}
+      {mostrarScrollTop && (
+        <button className="scroll-top" onClick={scrollTop}>
+          <ArrowUpOutlined />
+        </button>
+      )}
 
     </div>
   )

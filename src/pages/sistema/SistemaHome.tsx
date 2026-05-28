@@ -13,6 +13,7 @@ import Logo from '../../components/Logo'
 import { docentes } from '../../data/docentes'
 import { libros } from '../../data/libros'
 import type { Docente } from '../../data/docentes'
+import { BarChartOutlined } from '@ant-design/icons'
 
 interface Props {
   onDocenteDetectado: (docente: Docente) => void
@@ -78,6 +79,18 @@ function SistemaHome({ onDocenteDetectado }: Props) {
               borderRadius: 10,
             }}
           >
+            <Button
+              onClick={() => navigate('/sistema/reportes')}
+              icon={<BarChartOutlined />}
+              style={{
+                background: 'rgba(13,148,136,0.08)',
+                border: '1px solid rgba(13,148,136,0.25)',
+                color: '#0d9488',
+                borderRadius: 10,
+              }}
+            >
+              Reportes
+            </Button>
             Salir
           </Button>
         </div>

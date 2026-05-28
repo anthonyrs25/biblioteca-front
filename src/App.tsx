@@ -8,6 +8,7 @@ import Docente from './pages/sistema/Docente'
 import UsoBiblioteca from './pages/sistema/UsoBiblioteca'
 import Prestamo from './pages/sistema/Prestamo'
 import Devolucion from './pages/sistema/Devolucion'
+import Reportes from './pages/sistema/Reportes'
 import ProtectedRoute from './components/ProtectedRoute'
 import type { Docente as DocenteType } from './data/docentes'
 
@@ -18,11 +19,8 @@ function App() {
     <AntApp>
       <BrowserRouter>
         <Routes>
-          {/* PÚBLICA */}
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
-
-          {/* PROTEGIDAS */}
           <Route path="/sistema" element={
             <ProtectedRoute>
               <SistemaHome onDocenteDetectado={setDocenteActivo} />
@@ -46,6 +44,11 @@ function App() {
           <Route path="/sistema/devolucion" element={
             <ProtectedRoute>
               <Devolucion docente={docenteActivo} />
+            </ProtectedRoute>
+          } />
+          <Route path="/sistema/reportes" element={
+            <ProtectedRoute>
+              <Reportes />
             </ProtectedRoute>
           } />
         </Routes>
