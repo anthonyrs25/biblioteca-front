@@ -17,6 +17,7 @@ function App() {
 
   return (
     <AntApp>
+      <div className="aurora-bg" />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Landing />} />
