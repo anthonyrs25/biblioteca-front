@@ -6,10 +6,9 @@ import {
   CheckCircleOutlined,
   ArrowLeftOutlined,
 } from '@ant-design/icons'
-import type { Docente } from '../../data/docentes'
 
 interface Props {
-  docente: Docente | null
+  docente: any | null
 }
 
 const actividades = [
@@ -18,6 +17,12 @@ const actividades = [
   { value: 'trabajo', label: '💻 Trabajo académico' },
   { value: 'reunion', label: '👥 Reunión de trabajo' },
   { value: 'otro', label: '📝 Otro' },
+]
+
+const jornadas = [
+  { value: 'matutino', label: '🌅 Matutino' },
+  { value: 'vespertino', label: '🌇 Vespertino' },
+  { value: 'nocturno', label: '🌙 Nocturno' },
 ]
 
 function UsoBiblioteca({ docente }: Props) {
@@ -29,25 +34,28 @@ function UsoBiblioteca({ docente }: Props) {
   const [carreraSeleccionada, setCarreraSeleccionada] = useState<string | undefined>()
   const [cicloSeleccionado, setCicloSeleccionado] = useState<number | undefined>()
   const [materiaSeleccionada, setMateriaSeleccionada] = useState<string | undefined>()
+  const [jornadaSeleccionada, setJornadaSeleccionada] = useState<string | undefined>()
   const [confirmado, setConfirmado] = useState(false)
 
   if (!docente) { navigate('/sistema'); return null }
 
-  const opcionesCarrera = docente.carreras.map(c => ({
+  const carrerasReales = (docente.carreras ?? []).map((dc: any) => dc.carrera).filter(Boolean)
+
+  const opcionesCarrera = carrerasReales.map((c: any) => ({
     value: c.nombre,
     label: c.nombre,
   }))
 
-  const carreraActual = docente.carreras.find(c => c.nombre === carreraSeleccionada)
+  const carreraActual = carrerasReales.find((c: any) => c.nombre === carreraSeleccionada)
 
-  const opcionesCiclo = carreraActual?.ciclos.map(c => ({
+  const opcionesCiclo = carreraActual?.ciclos.map((c: any) => ({
     value: c.numero,
     label: `${c.numero}° Ciclo`,
   })) ?? []
 
-  const cicloActual = carreraActual?.ciclos.find(c => c.numero === cicloSeleccionado)
+  const cicloActual = carreraActual?.ciclos.find((c: any) => c.numero === cicloSeleccionado)
 
-  const opcionesMateria = cicloActual?.materias.map(m => ({
+  const opcionesMateria = cicloActual?.materias.map((m: any) => ({
     value: m.nombre,
     label: m.nombre,
   })) ?? []
@@ -68,6 +76,7 @@ function UsoBiblioteca({ docente }: Props) {
     if (!carreraSeleccionada) { message.warning('Selecciona una carrera'); return }
     if (!cicloSeleccionado) { message.warning('Selecciona el ciclo'); return }
     if (!materiaSeleccionada) { message.warning('Selecciona la materia'); return }
+    if (!jornadaSeleccionada) { message.warning('Selecciona la jornada'); return }
     setConfirmado(true)
     message.success('Registro confirmado')
     setTimeout(() => navigate('/sistema'), 2000)
@@ -160,6 +169,18 @@ function UsoBiblioteca({ docente }: Props) {
             />
           </div>
         )}
+
+        <div className="form-field">
+          <label className="field-label">Jornada</label>
+          <Select
+            placeholder="Matutino, vespertino o nocturno"
+            options={jornadas}
+            value={jornadaSeleccionada}
+            onChange={setJornadaSeleccionada}
+            style={{ width: '100%' }}
+            size="large"
+          />
+        </div>
 
         <Button
           className="btn-confirmar"

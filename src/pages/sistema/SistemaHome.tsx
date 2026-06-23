@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Statistic, Badge, App } from 'antd'
+import { Button, Statistic, App } from 'antd'
 import {
   WifiOutlined,
   BookOutlined,
@@ -11,24 +11,20 @@ import {
   BarChartOutlined,
 } from '@ant-design/icons'
 import Logo from '../../components/Logo'
-import { docentes } from '../../data/docentes'
-import { libros } from '../../data/libros'
-import type { Docente } from '../../data/docentes'
+import { getDocentes, getLibros } from '../../api/biblioteca'
 
 interface Props {
-  onDocenteDetectado: (docente: Docente) => void
+  onDocenteDetectado: (docente: any) => void
 }
-
-const actividadReciente = [
-  { id: 1, tipo: 'prestamo', docente: 'Ing. Paul Tigre', libro: 'Clean Code', hora: '09:14', color: '#0d9488' },
-  { id: 2, tipo: 'uso', docente: 'Ing. Paul Tigre', hora: '08:30', color: '#0ea5e9' },
-]
 
 function SistemaHome({ onDocenteDetectado }: Props) {
   const navigate = useNavigate()
   const { message } = App.useApp()
   const [hora, setHora] = useState(new Date())
   const [pulso, setPulso] = useState(false)
+  const [totalLibros, setTotalLibros] = useState(0)
+  const [docentesCount, setDocentesCount] = useState(0)
+  const [prestamosActivos, setPrestamosActivos] = useState(0)
 
   useEffect(() => {
     const t = setInterval(() => setHora(new Date()), 1000)
@@ -40,23 +36,38 @@ function SistemaHome({ onDocenteDetectado }: Props) {
     return () => clearInterval(t)
   }, [])
 
-  const simularRFID = () => {
-    const docente = docentes[Math.floor(Math.random() * docentes.length)]
-    // Simulación temporal: sin backend aún, alternamos si "tiene" un préstamo activo
-    // para poder probar el flujo de devolución. Esto se reemplaza con datos reales del backend.
-    const conPrestamoActivo = { ...docente, prestamosActivos: Math.random() > 0.5 ? 1 : 0 }
-    onDocenteDetectado(conPrestamoActivo)
-    message.success(`Tarjeta detectada: ${docente.nombre}`)
-    setTimeout(() => navigate('/sistema/docente'), 800)
+  // Cargar estadísticas reales del backend al entrar
+  useEffect(() => {
+    getLibros().then(libros => {
+      setTotalLibros(libros.reduce((a: number, b: any) => a + b.totalEjemplares, 0))
+    })
+    getDocentes().then(docentes => {
+      setDocentesCount(docentes.length)
+      const totalPrestamos = docentes.reduce((a: number, d: any) => a + d.prestamosActivos, 0)
+      setPrestamosActivos(totalPrestamos)
+    })
+  }, [])
+
+  const simularRFID = async () => {
+    try {
+      const docentes = await getDocentes()
+      if (docentes.length === 0) {
+        message.error('No hay docentes registrados todavía')
+        return
+      }
+      const aleatorio = docentes[Math.floor(Math.random() * docentes.length)]
+      onDocenteDetectado(aleatorio)
+      message.success(`Tarjeta detectada: ${aleatorio.nombre}`)
+      setTimeout(() => navigate('/sistema/docente'), 800)
+    } catch (err) {
+      message.error('Error al conectar con el backend')
+    }
   }
 
   const handleLogout = () => {
     localStorage.removeItem('biblioteca_auth')
     navigate('/')
   }
-
-  const totalLibros = libros.reduce((a, b) => a + b.totalEjemplares, 0)
-  const prestamosActivos = docentes.reduce((a, b) => a + b.prestamosActivos, 0)
 
   return (
     <div className="home-page">
@@ -69,18 +80,10 @@ function SistemaHome({ onDocenteDetectado }: Props) {
             <ClockCircleOutlined style={{ marginRight: 6 }} />
             {hora.toLocaleTimeString('es-EC')}
           </div>
-          <Button
-            onClick={() => navigate('/sistema/reportes')}
-            icon={<BarChartOutlined />}
-            className="btn-reportes"
-          >
+          <Button onClick={() => navigate('/sistema/reportes')} icon={<BarChartOutlined />} className="btn-reportes">
             Reportes
           </Button>
-          <Button
-            onClick={handleLogout}
-            icon={<LogoutOutlined />}
-            className="btn-salir"
-          >
+          <Button onClick={handleLogout} icon={<LogoutOutlined />} className="btn-salir">
             Salir
           </Button>
         </div>
@@ -135,32 +138,8 @@ function SistemaHome({ onDocenteDetectado }: Props) {
         </div>
         <div className="stat-glass">
           <TeamOutlined style={{ fontSize: 20, color: '#8b5cf6', marginBottom: 8 }} />
-          <Statistic title="Docentes registrados" value={docentes.length}
+          <Statistic title="Docentes registrados" value={docentesCount}
             valueStyle={{ color: '#0f172a', fontSize: 32, fontWeight: 800 }} />
-        </div>
-      </div>
-
-      <div className="actividad-card">
-        <div className="actividad-header">
-          <span className="actividad-titulo">Actividad reciente</span>
-          <Badge count="Hoy" style={{ background: 'rgba(13,148,166,0.15)', color: '#0d9488', boxShadow: 'none' }} />
-        </div>
-        <div className="actividad-lista">
-          {actividadReciente.map(item => (
-            <div key={item.id} className="actividad-item">
-              <div className="actividad-dot" style={{ background: item.color }} />
-              <div className="actividad-info">
-                <span className="actividad-nombre">{item.docente}</span>
-                {item.libro && <span className="actividad-libro"> — {item.libro}</span>}
-              </div>
-              <div className="actividad-right">
-                <span className="actividad-tipo" style={{ color: item.color }}>
-                  {item.tipo === 'prestamo' ? 'Préstamo' : 'Uso de sala'}
-                </span>
-                <span className="actividad-hora">{item.hora}</span>
-              </div>
-            </div>
-          ))}
         </div>
       </div>
     </div>
