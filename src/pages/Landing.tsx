@@ -7,7 +7,6 @@ import {
   TeamOutlined,
   ArrowRightOutlined,
   ClockCircleOutlined,
-  ReadOutlined,
   CalendarOutlined,
   ArrowUpOutlined,
   FacebookOutlined,
@@ -21,15 +20,23 @@ import {
 import Logo from '../components/Logo'
 import { libros } from '../data/libros'
 
+// CARRERAS — total de ejemplares por carrera (dato referencial, ajustar cuando exista backend real)
+const carreras = [
+  { nombre: 'Desarrollo de Software', ejemplares: 18 },
+  { nombre: 'Diseño Gráfico', ejemplares: 9 },
+  { nombre: 'Gastronomía', ejemplares: 7 },
+  { nombre: 'Marketing Digital y Negocios', ejemplares: 11 },
+  { nombre: 'Turismo', ejemplares: 6 },
+  { nombre: 'Talento Humano', ejemplares: 8 },
+  { nombre: 'Enfermería', ejemplares: 10 },
+  { nombre: 'Electricidad', ejemplares: 9 },
+  { nombre: 'Contabilidad y Asesoría Tributaria', ejemplares: 12 },
+  { nombre: 'Redes y Telecomunicaciones', ejemplares: 14 },
+]
+
 function Landing() {
   const navigate = useNavigate()
-  const [hora, setHora] = useState(new Date())
   const [mostrarScrollTop, setMostrarScrollTop] = useState(false)
-
-  useEffect(() => {
-    const t = setInterval(() => setHora(new Date()), 1000)
-    return () => clearInterval(t)
-  }, [])
 
   useEffect(() => {
     const handleScroll = () => setMostrarScrollTop(window.scrollY > 400)
@@ -70,17 +77,12 @@ function Landing() {
       {/* HERO */}
       <section className="landing-hero">
         <div className="hero-content">
-          <Tag className="hero-tag">
-            <span className="tag-dot" />
-            Biblioteca abierta ahora
-          </Tag>
           <h1 className="landing-title">
             Tu espacio para<br />
             <span className="title-gradient">aprender, crear</span><br />
             e innovar
           </h1>
           <p className="landing-subtitle">
-            Biblioteca Daniel Perazzo — Instituto de Tecnologías Sudamericano.<br />
             Recursos académicos, espacio de estudio y tecnología
             al servicio de tu formación profesional.
           </p>
@@ -170,48 +172,23 @@ function Landing() {
             <p>Espacio amplio con mesas para estudio individual o grupal en un ambiente tranquilo.</p>
             <Tag color="purple">Amplia sala</Tag>
           </div>
-          <div className="servicio-card">
-            <div className="servicio-icon" style={{ background: 'rgba(249,115,22,0.1)' }}>
-              <ReadOutlined style={{ color: '#f97316', fontSize: 24 }} />
-            </div>
-            <h3>Asesoría bibliográfica</h3>
-            <p>El personal de la biblioteca te ayuda a encontrar los recursos que necesitas para tu carrera.</p>
-            <Tag color="orange">Presencial</Tag>
-          </div>
         </div>
       </section>
 
-      {/* CATÁLOGO */}
+      {/* CATÁLOGO — por carreras */}
       <section className="landing-section catalogo-section" id="catalogo">
         <div className="section-label">Catálogo</div>
-        <h2 className="section-title">Recursos disponibles</h2>
-        <div className="catalogo-grid">
-          {libros.map(libro => (
-            <div key={libro.codigo} className="catalogo-card">
-              <div className="catalogo-top">
-                <Tag
-                  color={libro.disponibles > 0 ? 'cyan' : 'red'}
-                  style={{ borderRadius: 6 }}
-                >
-                  {libro.disponibles > 0
-                    ? `${libro.disponibles} disponible${libro.disponibles > 1 ? 's' : ''}`
-                    : 'No disponible'}
-                </Tag>
-                <span className="catalogo-categoria">{libro.categoria}</span>
-              </div>
-              <h3 className="catalogo-titulo">{libro.titulo}</h3>
-              <p className="catalogo-autor">{libro.autor} · {libro.anio}</p>
-              <p className="catalogo-desc">{libro.descripcion}</p>
-              <div className="catalogo-footer">
+        <h2 className="section-title">Recursos por carrera</h2>
+        <div className="catalogo-grid catalogo-grid-carreras">
+          {carreras.map(carrera => (
+            <div key={carrera.nombre} className="catalogo-card catalogo-card-carrera">
+              <BookOutlined style={{ color: '#0d9488', fontSize: 26, marginBottom: 12 }} />
+              <h3 className="catalogo-titulo">{carrera.nombre}</h3>
+              <div className="catalogo-footer-carrera">
                 <Statistic
-                  title="Total ejemplares"
-                  value={libro.totalEjemplares}
-                  valueStyle={{ fontSize: 20, fontWeight: 800, color: '#0f172a' }}
-                />
-                <Statistic
-                  title="Disponibles"
-                  value={libro.disponibles}
-                  valueStyle={{ fontSize: 20, fontWeight: 800, color: '#0d9488' }}
+                  title="Ejemplares disponibles"
+                  value={carrera.ejemplares}
+                  valueStyle={{ fontSize: 26, fontWeight: 800, color: '#0d9488' }}
                 />
               </div>
             </div>
@@ -242,10 +219,6 @@ function Landing() {
             <p className="horario-time">Cerrado</p>
             <Tag color="red">No disponible</Tag>
           </div>
-        </div>
-        <div className="hora-actual">
-          <ClockCircleOutlined style={{ marginRight: 8, color: '#0d9488' }} />
-          Hora actual: <strong>{hora.toLocaleTimeString('es-EC')}</strong>
         </div>
       </section>
 

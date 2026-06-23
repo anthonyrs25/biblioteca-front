@@ -8,12 +8,12 @@ import {
   SwapOutlined,
   ClockCircleOutlined,
   LogoutOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons'
 import Logo from '../../components/Logo'
 import { docentes } from '../../data/docentes'
 import { libros } from '../../data/libros'
 import type { Docente } from '../../data/docentes'
-import { BarChartOutlined } from '@ant-design/icons'
 
 interface Props {
   onDocenteDetectado: (docente: Docente) => void
@@ -42,7 +42,10 @@ function SistemaHome({ onDocenteDetectado }: Props) {
 
   const simularRFID = () => {
     const docente = docentes[Math.floor(Math.random() * docentes.length)]
-    onDocenteDetectado(docente)
+    // Simulación temporal: sin backend aún, alternamos si "tiene" un préstamo activo
+    // para poder probar el flujo de devolución. Esto se reemplaza con datos reales del backend.
+    const conPrestamoActivo = { ...docente, prestamosActivos: Math.random() > 0.5 ? 1 : 0 }
+    onDocenteDetectado(conPrestamoActivo)
     message.success(`Tarjeta detectada: ${docente.nombre}`)
     setTimeout(() => navigate('/sistema/docente'), 800)
   }
@@ -60,9 +63,6 @@ function SistemaHome({ onDocenteDetectado }: Props) {
       <div className="home-header">
         <div className="home-header-left">
           <Logo />
-          <Badge status="processing" color="#0d9488"
-            text={<span style={{ color: '#6b7280', fontSize: 13 }}>Sistema activo</span>}
-          />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div className="home-clock">
@@ -72,24 +72,14 @@ function SistemaHome({ onDocenteDetectado }: Props) {
           <Button
             onClick={() => navigate('/sistema/reportes')}
             icon={<BarChartOutlined />}
-            style={{
-              background: 'rgba(13,148,136,0.08)',
-              border: '1px solid rgba(13,148,136,0.25)',
-              color: '#0d9488',
-              borderRadius: 10,
-            }}
+            className="btn-reportes"
           >
             Reportes
           </Button>
           <Button
             onClick={handleLogout}
             icon={<LogoutOutlined />}
-            style={{
-              background: 'rgba(239,68,68,0.08)',
-              border: '1px solid rgba(239,68,68,0.2)',
-              color: '#ef4444',
-              borderRadius: 10,
-            }}
+            className="btn-salir"
           >
             Salir
           </Button>

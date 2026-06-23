@@ -92,25 +92,56 @@ function Reportes() {
         </div>
       </div>
 
-      {/* Disponibilidad de libros */}
-      <div className="reporte-card">
-        <h3 className="reporte-card-titulo">Libros disponibles ahora</h3>
-        <div className="barra-label">
-          <span>{totalDisponibles} de {totalLibros} ejemplares libres</span>
-          <strong>{Math.round((totalDisponibles / totalLibros) * 100)}%</strong>
+      {/* Fila inferior: 2 columnas en desktop para aprovechar el ancho */}
+      <div className="reportes-grid-inferior">
+
+        {/* Disponibilidad de libros */}
+        <div className="reporte-card">
+          <h3 className="reporte-card-titulo">Libros disponibles ahora</h3>
+          <div className="barra-label">
+            <span>{totalDisponibles} de {totalLibros} ejemplares libres</span>
+            <strong>{Math.round((totalDisponibles / totalLibros) * 100)}%</strong>
+          </div>
+          <Progress
+            percent={Math.round((totalDisponibles / totalLibros) * 100)}
+            strokeColor={{ '0%': '#14b8a6', '100%': '#22d3ee' }}
+            trailColor="rgba(255,255,255,0.08)"
+            strokeWidth={12}
+            strokeLinecap="round"
+            showInfo={false}
+          />
         </div>
-        <Progress
-          percent={Math.round((totalDisponibles / totalLibros) * 100)}
-          strokeColor={{ '0%': '#14b8a6', '100%': '#22d3ee' }}
-          trailColor="rgba(255,255,255,0.08)"
-          strokeWidth={12}
-          strokeLinecap="round"
-          showInfo={false}
-        />
+
+        {/* Qué carrera usa más la biblioteca */}
+        <div className="reporte-card">
+          <h3 className="reporte-card-titulo">
+            <BookOutlined style={{ marginRight: 8 }} />
+            ¿Quiénes usan más la biblioteca?
+          </h3>
+          <div className="carreras-lista">
+            {datosMes.carreras.map(c => (
+              <div key={c.carrera} className="carrera-bar-item">
+                <div className="carrera-bar-label">
+                  <span>{c.carrera}</span>
+                  <strong>{c.visitas} visitas</strong>
+                </div>
+                <Progress
+                  percent={Math.round((c.visitas / maxCarrera) * 100)}
+                  strokeColor={{ '0%': '#14b8a6', '100%': '#22d3ee' }}
+                  trailColor="rgba(255,255,255,0.08)"
+                  strokeWidth={10}
+                  strokeLinecap="round"
+                  showInfo={false}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
       </div>
 
-      {/* Visitas por semana */}
-      <div className="reporte-card">
+      {/* Visitas por semana — full width */}
+      <div className="reporte-card reporte-card-full">
         <h3 className="reporte-card-titulo">Visitas por semana</h3>
         <div className="semanas-grid">
           {datosMes.semanas.map(s => (
@@ -125,30 +156,6 @@ function Reportes() {
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Qué carrera usa más la biblioteca */}
-      <div className="reporte-card">
-        <h3 className="reporte-card-titulo">
-          <BookOutlined style={{ marginRight: 8 }} />
-          ¿Quiénes usan más la biblioteca?
-        </h3>
-        {datosMes.carreras.map(c => (
-          <div key={c.carrera} className="carrera-bar-item">
-            <div className="carrera-bar-label">
-              <span>{c.carrera}</span>
-              <strong>{c.visitas} visitas</strong>
-            </div>
-            <Progress
-              percent={Math.round((c.visitas / maxCarrera) * 100)}
-              strokeColor={{ '0%': '#14b8a6', '100%': '#22d3ee' }}
-              trailColor="rgba(255,255,255,0.08)"
-              strokeWidth={10}
-              strokeLinecap="round"
-              showInfo={false}
-            />
-          </div>
-        ))}
       </div>
 
     </div>
