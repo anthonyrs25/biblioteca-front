@@ -33,12 +33,14 @@ function UsoBiblioteca({ docente }: Props) {
   const [detalle, setDetalle] = useState('')
   const [carreraSeleccionada, setCarreraSeleccionada] = useState<string | undefined>()
   const [cicloSeleccionado, setCicloSeleccionado] = useState<number | undefined>()
-  const [materiaSeleccionada, setMateriaSeleccionada] = useState<string | undefined>()
   const [jornadaSeleccionada, setJornadaSeleccionada] = useState<string | undefined>()
+  const [materiaSeleccionada, setMateriaSeleccionada] = useState<string | undefined>()
   const [confirmado, setConfirmado] = useState(false)
 
   if (!docente) { navigate('/sistema'); return null }
 
+  // El backend devuelve: docente.carreras = [{ carrera: { nombre, ciclos: [...] } }, ...]
+  // "Desempaquetamos" esa capa intermedia para trabajar directo con { nombre, ciclos }
   const carrerasReales = (docente.carreras ?? []).map((dc: any) => dc.carrera).filter(Boolean)
 
   const opcionesCarrera = carrerasReales.map((c: any) => ({
@@ -63,11 +65,18 @@ function UsoBiblioteca({ docente }: Props) {
   const handleCarreraChange = (val: string) => {
     setCarreraSeleccionada(val)
     setCicloSeleccionado(undefined)
+    setJornadaSeleccionada(undefined)
     setMateriaSeleccionada(undefined)
   }
 
   const handleCicloChange = (val: number) => {
     setCicloSeleccionado(val)
+    setJornadaSeleccionada(undefined)
+    setMateriaSeleccionada(undefined)
+  }
+
+  const handleJornadaChange = (val: string) => {
+    setJornadaSeleccionada(val)
     setMateriaSeleccionada(undefined)
   }
 
@@ -75,8 +84,8 @@ function UsoBiblioteca({ docente }: Props) {
     if (!actividad) { message.warning('Selecciona una actividad'); return }
     if (!carreraSeleccionada) { message.warning('Selecciona una carrera'); return }
     if (!cicloSeleccionado) { message.warning('Selecciona el ciclo'); return }
-    if (!materiaSeleccionada) { message.warning('Selecciona la materia'); return }
     if (!jornadaSeleccionada) { message.warning('Selecciona la jornada'); return }
+    if (!materiaSeleccionada) { message.warning('Selecciona la materia'); return }
     setConfirmado(true)
     message.success('Registro confirmado')
     setTimeout(() => navigate('/sistema'), 2000)
@@ -158,6 +167,20 @@ function UsoBiblioteca({ docente }: Props) {
 
         {cicloSeleccionado && (
           <div className="form-field">
+            <label className="field-label">Jornada</label>
+            <Select
+              placeholder="Matutino, vespertino o nocturno"
+              options={jornadas}
+              value={jornadaSeleccionada}
+              onChange={handleJornadaChange}
+              style={{ width: '100%' }}
+              size="large"
+            />
+          </div>
+        )}
+
+        {jornadaSeleccionada && (
+          <div className="form-field">
             <label className="field-label">Materia</label>
             <Select
               placeholder="Selecciona la materia"
@@ -169,18 +192,6 @@ function UsoBiblioteca({ docente }: Props) {
             />
           </div>
         )}
-
-        <div className="form-field">
-          <label className="field-label">Jornada</label>
-          <Select
-            placeholder="Matutino, vespertino o nocturno"
-            options={jornadas}
-            value={jornadaSeleccionada}
-            onChange={setJornadaSeleccionada}
-            style={{ width: '100%' }}
-            size="large"
-          />
-        </div>
 
         <Button
           className="btn-confirmar"
