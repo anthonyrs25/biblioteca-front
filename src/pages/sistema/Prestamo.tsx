@@ -1,18 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Input, Button, App, Select, DatePicker } from 'antd'
+import { Input, Button, App, Select, DatePicker, Tag } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
-import {
-  SwapOutlined,
-  ArrowLeftOutlined,
-  SearchOutlined,
-  CalendarOutlined,
-} from '@ant-design/icons'
-import { libros } from '../../data/libros'
-import type { Docente } from '../../data/docentes'
+import { SwapOutlined, ArrowLeftOutlined, SearchOutlined, CalendarOutlined } from '@ant-design/icons'
+import { buscarLibros, getProgramas, crearPrestamo } from '../../api/biblioteca'
 
 interface Props {
-  docente: Docente | null
+  docente: any | null
 }
 
 const tiposDocumento = [
@@ -26,28 +20,46 @@ function Prestamo({ docente }: Props) {
   const navigate = useNavigate()
   const { message } = App.useApp()
 
-  const [codigo, setCodigo] = useState('')
-  const [libroEncontrado, setLibroEncontrado] = useState<typeof libros[0] | null | undefined>(undefined)
+  const [programas, setProgramas] = useState<string[]>([])
+  const [programaSeleccionado, setProgramaSeleccionado] = useState<string | undefined>()
+  const [texto, setTexto] = useState('')
+  const [resultados, setResultados] = useState<any[]>([])
+  const [libroSeleccionado, setLibroSeleccionado] = useState<any | null>(null)
   const [tipoDocumento, setTipoDocumento] = useState<string | undefined>()
   const [numeroDocumento, setNumeroDocumento] = useState('')
   const [fechaDevolucion, setFechaDevolucion] = useState<Dayjs>(dayjs().add(14, 'day'))
   const [mostrarCalendario, setMostrarCalendario] = useState(false)
   const [confirmado, setConfirmado] = useState(false)
 
+  useEffect(() => {
+    getProgramas().then(setProgramas)
+  }, [])
+
+  // Buscar cada vez que cambia el texto o el programa (con un pequeño debounce)
+  useEffect(() => {
+    if (!texto && !programaSeleccionado) {
+      setResultados([])
+      return
+    }
+    const t = setTimeout(() => {
+      buscarLibros(texto || undefined, programaSeleccionado).then(setResultados)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [texto, programaSeleccionado])
+
   if (!docente) { navigate('/sistema'); return null }
 
-  const handleBuscar = () => {
-    if (!codigo.trim()) { message.warning('Ingresa un código de libro'); return }
-    const encontrado = libros.find(l => l.codigo.toLowerCase() === codigo.trim().toLowerCase())
-    setLibroEncontrado(encontrado ?? null)
-  }
-
-  const handleConfirmar = () => {
-    if (!libroEncontrado) return
+  const handleConfirmar = async () => {
+    if (!libroSeleccionado) return
     if (!tipoDocumento) { message.warning('Selecciona el tipo de documento de respaldo'); return }
-    setConfirmado(true)
-    message.success('Préstamo registrado')
-    setTimeout(() => navigate('/sistema'), 2000)
+    try {
+      await crearPrestamo(docente.id, libroSeleccionado.id)
+      setConfirmado(true)
+      message.success('Préstamo registrado')
+      setTimeout(() => navigate('/sistema'), 2000)
+    } catch {
+      message.error('Error al registrar el préstamo — verifica que haya ejemplares disponibles')
+    }
   }
 
   if (confirmado) return (
@@ -62,7 +74,7 @@ function Prestamo({ docente }: Props) {
 
   return (
     <div className="page-wrapper">
-      <div className="page-card">
+      <div className="page-card" style={{ maxWidth: 720 }}>
         <button className="btn-volver" onClick={() => navigate('/sistema/docente')}>
           <ArrowLeftOutlined /> Volver
         </button>
@@ -73,62 +85,85 @@ function Prestamo({ docente }: Props) {
           <p className="perfil-depto">{docente.nombre}</p>
         </div>
 
-        {/* BÚSQUEDA POR CÓDIGO */}
+        {/* FILTRO DE CARRERA */}
         <div className="form-field">
-          <label className="field-label">Código del libro</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Input
-              placeholder="Ej: LIB-001"
-              value={codigo}
-              onChange={e => setCodigo(e.target.value)}
-              onPressEnter={handleBuscar}
-              size="large"
-            />
-            <Button className="btn-buscar" icon={<SearchOutlined />} onClick={handleBuscar} size="large">
-              Buscar
-            </Button>
-          </div>
+          <label className="field-label">Carrera (opcional)</label>
+          <Select
+            placeholder="Filtrar por carrera"
+            options={programas.map(p => ({ value: p, label: p }))}
+            value={programaSeleccionado}
+            onChange={setProgramaSeleccionado}
+            allowClear
+            style={{ width: '100%' }}
+            size="large"
+          />
         </div>
 
-        {/* RESULTADO */}
-        {libroEncontrado === null && (
-          <div className="no-encontrado">
-            No se encontró ningún libro con ese código.
+        {/* BÚSQUEDA LIBRE */}
+        <div className="form-field">
+          <label className="field-label">Buscar por título, autor o código</label>
+          <Input
+            placeholder="Escribe para buscar..."
+            value={texto}
+            onChange={e => setTexto(e.target.value)}
+            prefix={<SearchOutlined style={{ color: '#9ca3af' }} />}
+            size="large"
+          />
+        </div>
+
+        {/* RESULTADOS */}
+        {resultados.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20, maxHeight: 280, overflowY: 'auto' }}>
+            {resultados.map(libro => (
+              <div
+                key={libro.id}
+                className={`libro-opcion ${libroSeleccionado?.id === libro.id ? 'selected' : ''}`}
+                onClick={() => setLibroSeleccionado(libro)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div style={{ flex: 1 }}>
+                  <p className="libro-titulo" style={{ margin: 0 }}>{libro.titulo}</p>
+                  <p className="libro-autor" style={{ margin: 0 }}>{libro.autor} · {libro.anio}</p>
+                </div>
+                <Tag color={libro.disponibles > 0 ? 'green' : 'red'}>
+                  {libro.disponibles} de {libro.totalEjemplares} disp.
+                </Tag>
+              </div>
+            ))}
           </div>
         )}
 
-        {libroEncontrado && (
+        {(texto || programaSeleccionado) && resultados.length === 0 && (
+          <div className="no-encontrado">No se encontraron libros con esos filtros.</div>
+        )}
+
+        {libroSeleccionado && (
           <>
             <div className="libro-resultado" style={{ marginBottom: 20 }}>
               <div className="libro-header">
                 <div>
-                  <p className="libro-titulo" style={{ margin: 0 }}>{libroEncontrado.titulo}</p>
-                  <p className="libro-autor">{libroEncontrado.autor} · {libroEncontrado.anio}</p>
-                  <p className="libro-categoria">{libroEncontrado.categoria}</p>
+                  <p className="libro-titulo" style={{ margin: 0 }}>{libroSeleccionado.titulo}</p>
+                  <p className="libro-autor">{libroSeleccionado.autor} · {libroSeleccionado.anio}</p>
+                  <p className="libro-categoria">{libroSeleccionado.categoria}</p>
                 </div>
               </div>
-
               <div className="libro-stock">
                 <div className="stock-item">
-                  <span className="stock-num">{libroEncontrado.disponibles}</span>
+                  <span className="stock-num">{libroSeleccionado.disponibles}</span>
                   <span className="stock-label">Disponibles</span>
                 </div>
                 <div className="stock-item">
-                  <span className="stock-num">{libroEncontrado.totalEjemplares}</span>
+                  <span className="stock-num">{libroSeleccionado.totalEjemplares}</span>
                   <span className="stock-label">Total ejemplares</span>
                 </div>
               </div>
-
-              {libroEncontrado.disponibles === 0 && (
-                <div className="no-disponible">
-                  No hay ejemplares disponibles de este libro en este momento.
-                </div>
+              {libroSeleccionado.disponibles === 0 && (
+                <div className="no-disponible">No hay ejemplares disponibles de este libro en este momento.</div>
               )}
             </div>
 
-            {libroEncontrado.disponibles > 0 && (
+            {libroSeleccionado.disponibles > 0 && (
               <>
-                {/* DOCUMENTO DE RESPALDO */}
                 <div className="documento-row" style={{ marginBottom: 18 }}>
                   <div className="form-field" style={{ marginBottom: 0 }}>
                     <label className="field-label">Documento de respaldo</label>
@@ -152,7 +187,6 @@ function Prestamo({ docente }: Props) {
                   </div>
                 </div>
 
-                {/* PLAZO DE DEVOLUCIÓN */}
                 <div className="plazo-card">
                   <div className="plazo-info">
                     <span className="plazo-label">Fecha de devolución</span>
@@ -175,12 +209,7 @@ function Prestamo({ docente }: Props) {
                   )}
                 </div>
 
-                <Button
-                  className="btn-confirmar"
-                  block
-                  size="large"
-                  onClick={handleConfirmar}
-                >
+                <Button className="btn-confirmar" block size="large" onClick={handleConfirmar}>
                   Confirmar préstamo
                 </Button>
               </>

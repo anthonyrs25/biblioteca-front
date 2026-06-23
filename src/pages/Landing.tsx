@@ -18,25 +18,28 @@ import {
   EnvironmentOutlined,
 } from '@ant-design/icons'
 import Logo from '../components/Logo'
-import { libros } from '../data/libros'
+import { getLibros, getConteoPorPrograma } from '../api/biblioteca'
 
-// CARRERAS — total de ejemplares por carrera (dato referencial, ajustar cuando exista backend real)
-const carreras = [
-  { nombre: 'Desarrollo de Software', ejemplares: 18 },
-  { nombre: 'Diseño Gráfico', ejemplares: 9 },
-  { nombre: 'Gastronomía', ejemplares: 7 },
-  { nombre: 'Marketing Digital y Negocios', ejemplares: 11 },
-  { nombre: 'Turismo', ejemplares: 6 },
-  { nombre: 'Talento Humano', ejemplares: 8 },
-  { nombre: 'Enfermería', ejemplares: 10 },
-  { nombre: 'Electricidad', ejemplares: 9 },
-  { nombre: 'Contabilidad y Asesoría Tributaria', ejemplares: 12 },
-  { nombre: 'Redes y Telecomunicaciones', ejemplares: 14 },
-]
+// Nombres "bonitos" para mostrar en las tarjetas, distintos al texto largo del inventario
+const nombreCorto: Record<string, string> = {
+  'TECNOLOGÍA SUPERIOR EN DESARROLLO DE SOFTWARE': 'Desarrollo de Software',
+  'TECNOLOGÍA SUPERIOR EN MARKETING': 'Marketing Digital y Negocios',
+  'TECNOLOGÍA SUPERIOR EN GASTRONOMÍA': 'Gastronomía',
+  'DISEÑO GRÁFICO CON NIVEL EQUIVALENTE A TECNOLOGÍA SUPERIOR': 'Diseño Gráfico',
+  'TECNOLOGÍA SUPERIOR EN TURISMO': 'Turismo',
+  'ENFERMERÍA': 'Enfermería',
+  'CONTABILIDAD Y ASESORIA TRIBUTARIA': 'Contabilidad y Asesoría Tributaria',
+  'REDES Y TELECOMUNICACIONES': 'Redes y Telecomunicaciones',
+  'ELECTRICIDAD': 'Electricidad',
+  'TECNOLOGÍA SUPERIOR EN ADMINISTRACIÓN DEL TALENTO HUMANO': 'Talento Humano',
+}
 
 function Landing() {
   const navigate = useNavigate()
   const [mostrarScrollTop, setMostrarScrollTop] = useState(false)
+  const [totalLibros, setTotalLibros] = useState(0)
+  const [disponibles, setDisponibles] = useState(0)
+  const [carreras, setCarreras] = useState<{ nombre: string; ejemplares: number }[]>([])
 
   useEffect(() => {
     const handleScroll = () => setMostrarScrollTop(window.scrollY > 400)
@@ -44,14 +47,30 @@ function Landing() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  // Cargar datos reales del backend al entrar
+  useEffect(() => {
+    getLibros().then((data: any[]) => {
+      setTotalLibros(data.length)
+      setDisponibles(data.reduce((a, b) => a + (b.disponibles ?? 0), 0))
+    })
+
+    getConteoPorPrograma().then((data: { programa: string; total: number }[]) => {
+      const mapeado = data
+        .filter(d => d.programa !== 'EDUCACIÓN CONTINUA')
+        .map(d => ({
+          nombre: nombreCorto[d.programa] || d.programa,
+          ejemplares: d.total,
+        }))
+        .sort((a, b) => b.ejemplares - a.ejemplares)
+      setCarreras(mapeado)
+    })
+  }, [])
+
   const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 
   const irA = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
   }
-
-  const totalLibros = libros.reduce((a, b) => a + b.totalEjemplares, 0)
-  const disponibles = libros.reduce((a, b) => a + b.disponibles, 0)
 
   return (
     <div className="landing">
@@ -175,7 +194,7 @@ function Landing() {
         </div>
       </section>
 
-      {/* CATÁLOGO — por carreras */}
+      {/* CATÁLOGO — por carreras, datos reales del backend */}
       <section className="landing-section catalogo-section" id="catalogo">
         <div className="section-label">Catálogo</div>
         <h2 className="section-title">Recursos por carrera</h2>
