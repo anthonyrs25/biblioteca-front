@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Statistic, App } from 'antd'
+import { Button, Statistic } from 'antd'
 import {
   WifiOutlined,
   BookOutlined,
@@ -17,9 +17,8 @@ interface Props {
   onDocenteDetectado: (docente: any) => void
 }
 
-function SistemaHome({ onDocenteDetectado }: Props) {
+function SistemaHome({ onDocenteDetectado: _ }: Props) {
   const navigate = useNavigate()
-  const { message } = App.useApp()
   const [hora, setHora] = useState(new Date())
   const [pulso, setPulso] = useState(false)
   const [totalLibros, setTotalLibros] = useState(0)
@@ -36,36 +35,22 @@ function SistemaHome({ onDocenteDetectado }: Props) {
     return () => clearInterval(t)
   }, [])
 
-  // Cargar estadísticas reales del backend al entrar
   useEffect(() => {
     getLibros().then(libros => {
       setTotalLibros(libros.reduce((a: number, b: any) => a + b.totalEjemplares, 0))
     })
     getDocentes().then(docentes => {
-      setDocentesCount(docentes.length)
-      const totalPrestamos = docentes.reduce((a: number, d: any) => a + d.prestamosActivos, 0)
+      // Solo contar usuarios con rol 'usuario' (excluir admin y bibliotecario)
+      const soloDocentes = docentes.filter((d: any) => d.rol === 'usuario')
+      setDocentesCount(soloDocentes.length)
+      const totalPrestamos = soloDocentes.reduce((a: number, d: any) => a + d.prestamosActivos, 0)
       setPrestamosActivos(totalPrestamos)
     })
   }, [])
 
-  const simularRFID = async () => {
-    try {
-      const docentes = await getDocentes()
-      if (docentes.length === 0) {
-        message.error('No hay docentes registrados todavía')
-        return
-      }
-      const aleatorio = docentes[Math.floor(Math.random() * docentes.length)]
-      onDocenteDetectado(aleatorio)
-      message.success(`Tarjeta detectada: ${aleatorio.nombre}`)
-      setTimeout(() => navigate('/sistema/docente'), 800)
-    } catch (err) {
-      message.error('Error al conectar con el backend')
-    }
-  }
-
   const handleLogout = () => {
-    localStorage.removeItem('biblioteca_auth')
+    localStorage.removeItem('biblioteca_token')
+    localStorage.removeItem('biblioteca_usuario')
     navigate('/')
   }
 
@@ -103,9 +88,6 @@ function SistemaHome({ onDocenteDetectado }: Props) {
             Acerque su tarjeta RFID al lector para registrar
             préstamos, devoluciones y uso de sala.
           </p>
-          <Button className="btn-rfid" onClick={simularRFID} size="large">
-            <WifiOutlined /> Simular lectura RFID
-          </Button>
         </div>
         <div className="hero-right">
           <div className="blob-container">
