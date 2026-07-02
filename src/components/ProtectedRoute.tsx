@@ -5,9 +5,9 @@ interface Props {
 }
 
 function ProtectedRoute({ children }: Props) {
-  const isLoggedIn = localStorage.getItem('biblioteca_auth') === 'true'
+  const token = localStorage.getItem('biblioteca_token')
 
-  if (!isLoggedIn) {
+  if (!token) {
     return <Navigate to="/login" replace />
   }
 

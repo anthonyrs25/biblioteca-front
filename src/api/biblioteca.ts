@@ -4,7 +4,21 @@ const api = axios.create({
   baseURL: 'http://localhost:3000',
 })
 
-// ───── DOCENTES ─────
+// Interceptor: manda el token JWT en cada request automáticamente
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('biblioteca_token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// ───── AUTH ─────
+
+export const login = (email: string, password: string) =>
+  api.post('/auth/login', { email, password }).then(r => r.data)
+
+// ───── DOCENTES / USUARIOS ─────
 
 export const getDocenteByRfid = (uid: string) =>
   api.get(`/docentes/rfid/${uid}`).then(r => r.data)
@@ -53,6 +67,12 @@ export const actualizarLibro = (id: number, data: Partial<{
 export const eliminarLibro = (id: number) =>
   api.delete(`/libros/${id}`).then(r => r.data)
 
+export const buscarLibros = (texto?: string, programa?: string) =>
+  api.get('/libros/buscar', { params: { texto, programa } }).then(r => r.data)
+
+export const getProgramas = () =>
+  api.get('/libros/programas').then(r => r.data)
+
 // ───── PRÉSTAMOS ─────
 
 export const crearPrestamo = (docenteId: number, libroId: number) =>
@@ -77,9 +97,3 @@ export const crearRegistro = (data: {
 
 export const getStatsRegistros = (anio: number, mes: number) =>
   api.get(`/registros/stats/${anio}/${mes}`).then(r => r.data)
-
-export const buscarLibros = (texto?: string, programa?: string) =>
-  api.get('/libros/buscar', { params: { texto, programa } }).then(r => r.data)
-
-export const getProgramas = () =>
-  api.get('/libros/programas').then(r => r.data)

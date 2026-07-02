@@ -3,31 +3,32 @@ import { useNavigate } from 'react-router-dom'
 import { Input, Button, App } from 'antd'
 import { LockOutlined, UserOutlined, ArrowLeftOutlined } from '@ant-design/icons'
 import Logo from '../components/Logo'
+import { login } from '../api/biblioteca'
 
 function Login() {
   const navigate = useNavigate()
   const { message } = App.useApp()
-  const [usuario, setUsuario] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleLogin = () => {
-    if (!usuario || !password) {
-      message.warning('Ingresa usuario y contraseña')
+  const handleLogin = async () => {
+    if (!email || !password) {
+      message.warning('Ingresa email y contraseña')
       return
     }
     setLoading(true)
-    setTimeout(() => {
-      // CREDENCIALES — cambia esto cuando tengas backend real
-      if (usuario === 'admin' && password === 'biblioteca2026') {
-        localStorage.setItem('biblioteca_auth', 'true')
-        message.success('Acceso concedido')
-        navigate('/sistema')
-      } else {
-        message.error('Credenciales incorrectas')
-        setLoading(false)
-      }
-    }, 800)
+    try {
+      const data = await login(email, password)
+      localStorage.setItem('biblioteca_token', data.access_token)
+      localStorage.setItem('biblioteca_usuario', JSON.stringify(data.usuario))
+      message.success('Acceso concedido')
+      navigate('/sistema')
+    } catch {
+      message.error('Credenciales incorrectas')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -46,12 +47,12 @@ function Login() {
 
         <div className="login-form">
           <div className="form-field">
-            <label className="field-label">Usuario</label>
+            <label className="field-label">Correo institucional</label>
             <Input
               prefix={<UserOutlined style={{ color: '#9ca3af' }} />}
-              placeholder="Ingresa tu usuario"
-              value={usuario}
-              onChange={e => setUsuario(e.target.value)}
+              placeholder="correo@sudamericano.edu.ec"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
               size="large"
               onPressEnter={handleLogin}
             />
