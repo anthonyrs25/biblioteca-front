@@ -112,22 +112,23 @@ function SistemaHome({ onDocenteDetectado: _ }: Props) {
       </div>
 
       <div className="stats-row">
-        <div className="stat-glass">
+        <div className="stat-glass" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema/gestion/libros')}>
           <BookOutlined style={{ fontSize: 20, color: '#0d9488', marginBottom: 8 }} />
           <Statistic title="Libros registrados" value={totalLibros}
             valueStyle={{ color: '#0f172a', fontSize: 32, fontWeight: 800 }} />
         </div>
-        <div className="stat-glass">
+        <div className="stat-glass" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema/gestion')}>
           <SwapOutlined style={{ fontSize: 20, color: '#0ea5e9', marginBottom: 8 }} />
           <Statistic title="Préstamos activos" value={prestamosActivos}
             valueStyle={{ color: '#0f172a', fontSize: 32, fontWeight: 800 }} />
         </div>
-        <div className="stat-glass">
+        <div className="stat-glass" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema/gestion/docentes')}>
           <TeamOutlined style={{ fontSize: 20, color: '#8b5cf6', marginBottom: 8 }} />
           <Statistic title="Docentes registrados" value={docentesCount}
             valueStyle={{ color: '#0f172a', fontSize: 32, fontWeight: 800 }} />
         </div>
       </div>
+
     </div>
   )
 }
