@@ -9,6 +9,7 @@ import {
   ClockCircleOutlined,
   LogoutOutlined,
   BarChartOutlined,
+  SettingOutlined,
 } from '@ant-design/icons'
 import Logo from '../../components/Logo'
 import { getDocentes, getLibros } from '../../api/biblioteca'
@@ -70,6 +71,9 @@ function SistemaHome({ onDocenteDetectado: _ }: Props) {
           </Button>
           <Button onClick={handleLogout} icon={<LogoutOutlined />} className="btn-salir">
             Salir
+          </Button>
+          <Button onClick={() => navigate('/sistema/gestion')} icon={<SettingOutlined />} className="btn-reportes">
+            Gestión
           </Button>
         </div>
       </div>
