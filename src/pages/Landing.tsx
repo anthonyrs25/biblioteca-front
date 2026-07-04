@@ -20,7 +20,6 @@ import {
 import Logo from '../components/Logo'
 import { getLibros, getConteoPorPrograma } from '../api/biblioteca'
 
-// Nombres "bonitos" para mostrar en las tarjetas, distintos al texto largo del inventario
 const nombreCorto: Record<string, string> = {
   'TECNOLOGÍA SUPERIOR EN DESARROLLO DE SOFTWARE': 'Desarrollo de Software',
   'TECNOLOGÍA SUPERIOR EN MARKETING': 'Marketing Digital y Negocios',
@@ -47,13 +46,11 @@ function Landing() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Cargar datos reales del backend al entrar
   useEffect(() => {
     getLibros().then((data: any[]) => {
       setTotalLibros(data.length)
       setDisponibles(data.reduce((a, b) => a + (b.disponibles ?? 0), 0))
     })
-
     getConteoPorPrograma().then((data: { programa: string; total: number }[]) => {
       const mapeado = data
         .filter(d => d.programa !== 'EDUCACIÓN CONTINUA')
@@ -67,10 +64,7 @@ function Landing() {
   }, [])
 
   const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
-
-  const irA = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
-  }
+  const irA = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
 
   return (
     <div className="landing">
@@ -106,19 +100,10 @@ function Landing() {
             al servicio de tu formación profesional.
           </p>
           <div className="hero-actions">
-            <Button
-              className="btn-hero-primary"
-              size="large"
-              icon={<BookOutlined />}
-              onClick={() => irA('catalogo')}
-            >
+            <Button className="btn-hero-primary" size="large" icon={<BookOutlined />} onClick={() => irA('catalogo')}>
               Ver catálogo
             </Button>
-            <Button
-              className="btn-hero-secondary"
-              size="large"
-              onClick={() => irA('servicios')}
-            >
+            <Button className="btn-hero-secondary" size="large" onClick={() => irA('servicios')}>
               Ver servicios
             </Button>
           </div>
@@ -129,18 +114,17 @@ function Landing() {
             </div>
             <div className="hero-stat-divider" />
             <div className="hero-stat">
-              <span className="hstat-num">3</span>
+              <span className="hstat-num">6</span>
               <span className="hstat-label">Computadoras</span>
             </div>
             <div className="hero-stat-divider" />
             <div className="hero-stat">
-              <span className="hstat-num">20+</span>
+              <span className="hstat-num">23</span>
               <span className="hstat-label">Mesas de estudio</span>
             </div>
           </div>
         </div>
 
-        {/* BLOB DECORATIVO */}
         <div className="hero-visual">
           <div className="blob-wrap">
             <div className="blob blob-1" />
@@ -148,14 +132,14 @@ function Landing() {
             <div className="blob blob-3" />
             <div className="blob-shine" />
             <div className="blob-card card-1">
-              <BookOutlined style={{ color: '#0d9488', fontSize: 20 }} />
+              <BookOutlined style={{ color: '#00796B', fontSize: 20 }} />
               <div>
                 <div className="bcard-title">Libros disponibles</div>
                 <div className="bcard-sub">{disponibles} títulos listos para préstamo</div>
               </div>
             </div>
             <div className="blob-card card-2">
-              <span className="bcard-num" style={{ color: '#0d9488' }}>1995</span>
+              <span className="bcard-num">1995</span>
               <div className="bcard-title">Establecidos en Cuenca</div>
             </div>
           </div>
@@ -168,46 +152,46 @@ function Landing() {
         <h2 className="section-title">Todo lo que necesitas<br />en un solo lugar</h2>
         <div className="servicios-grid">
           <div className="servicio-card">
-            <div className="servicio-icon" style={{ background: 'rgba(13,148,136,0.1)' }}>
-              <BookOutlined style={{ color: '#0d9488', fontSize: 24 }} />
+            <div className="servicio-icon servicio-icon-teal">
+              <BookOutlined style={{ color: '#00796B', fontSize: 24 }} />
             </div>
             <h3>Préstamo de libros</h3>
             <p>Accede a nuestra colección de títulos académicos. Registro rápido con tecnología RFID.</p>
             <Tag color="cyan">Disponible</Tag>
           </div>
           <div className="servicio-card">
-            <div className="servicio-icon" style={{ background: 'rgba(14,165,233,0.1)' }}>
-              <DesktopOutlined style={{ color: '#0ea5e9', fontSize: 24 }} />
+            <div className="servicio-icon servicio-icon-indigo">
+              <DesktopOutlined style={{ color: '#78909C', fontSize: 24 }} />
             </div>
             <h3>Computadoras</h3>
-            <p>3 equipos de cómputo disponibles para investigación, trabajos académicos y navegación.</p>
-            <Tag color="blue">3 equipos</Tag>
+            <p>6 equipos de cómputo disponibles para investigación, trabajos académicos y navegación.</p>
+            <Tag color="default">6 equipos</Tag>
           </div>
           <div className="servicio-card">
-            <div className="servicio-icon" style={{ background: 'rgba(139,92,246,0.1)' }}>
-              <TeamOutlined style={{ color: '#8b5cf6', fontSize: 24 }} />
+            <div className="servicio-icon servicio-icon-orange">
+              <TeamOutlined style={{ color: '#607D8B', fontSize: 24 }} />
             </div>
             <h3>Sala de estudio</h3>
-            <p>Espacio amplio con mesas para estudio individual o grupal en un ambiente tranquilo.</p>
-            <Tag color="purple">Amplia sala</Tag>
+            <p>23 mesas para estudio individual o grupal en un ambiente tranquilo y cómodo.</p>
+            <Tag color="default">23 mesas</Tag>
           </div>
         </div>
       </section>
 
-      {/* CATÁLOGO — por carreras, datos reales del backend */}
+      {/* CATÁLOGO */}
       <section className="landing-section catalogo-section" id="catalogo">
         <div className="section-label">Catálogo</div>
         <h2 className="section-title">Recursos por carrera</h2>
         <div className="catalogo-grid catalogo-grid-carreras">
           {carreras.map(carrera => (
             <div key={carrera.nombre} className="catalogo-card catalogo-card-carrera">
-              <BookOutlined style={{ color: '#0d9488', fontSize: 26, marginBottom: 12 }} />
+              <BookOutlined style={{ color: '#00796B', fontSize: 26, marginBottom: 12 }} />
               <h3 className="catalogo-titulo">{carrera.nombre}</h3>
               <div className="catalogo-footer-carrera">
                 <Statistic
                   title="Ejemplares disponibles"
                   value={carrera.ejemplares}
-                  valueStyle={{ fontSize: 26, fontWeight: 800, color: '#0d9488' }}
+                  valueStyle={{ fontSize: 26, fontWeight: 800, color: '#00796B' }}
                 />
               </div>
             </div>
@@ -221,23 +205,24 @@ function Landing() {
         <h2 className="section-title">Estamos aquí para ti</h2>
         <div className="horarios-grid">
           <div className="horario-card">
-            <CalendarOutlined style={{ fontSize: 28, color: '#0d9488' }} />
+            <CalendarOutlined style={{ fontSize: 28, color: '#00796B' }} />
             <h3>Lunes a Viernes</h3>
-            <p className="horario-time">07:00 — 19:00</p>
-            <Tag color="cyan">Abierto hoy</Tag>
-          </div>
-          <div className="horario-card">
-            <CalendarOutlined style={{ fontSize: 28, color: '#6b7280' }} />
-            <h3>Sábados</h3>
-            <p className="horario-time">08:00 — 13:00</p>
-            <Tag color="default">Medio día</Tag>
+            <p className="horario-time">
+              08:00 — 13:00<br />
+              17:00 — 20:00
+            </p>
+            <Tag color="cyan">Abierto</Tag>
           </div>
           <div className="horario-card cerrado">
             <ClockCircleOutlined style={{ fontSize: 28, color: '#9ca3af' }} />
-            <h3>Domingos</h3>
-            <p className="horario-time">Cerrado</p>
-            <Tag color="red">No disponible</Tag>
+            <h3>Sábados y Domingos</h3>
+            <p className="horario-time">Sin atención</p>
+            <Tag color="default">Cerrado</Tag>
           </div>
+        </div>
+        <div className="hora-actual" style={{ marginTop: 16 }}>
+          <ClockCircleOutlined style={{ marginRight: 8 }} />
+          Horario de atención: <strong>lunes a viernes de 08:00 a 13:00 y de 17:00 a 20:00</strong>
         </div>
       </section>
 
@@ -251,41 +236,33 @@ function Landing() {
               desde 1995 en Cuenca, Ecuador.
             </p>
             <div className="footer-redes">
-              <a href="https://facebook.com" target="_blank" rel="noreferrer" className="red-social">
-                <FacebookOutlined />
-              </a>
-              <a href="https://youtube.com" target="_blank" rel="noreferrer" className="red-social">
-                <YoutubeOutlined />
-              </a>
-              <a href="https://x.com" target="_blank" rel="noreferrer" className="red-social">
-                <XOutlined />
-              </a>
-              <a href="https://instagram.com" target="_blank" rel="noreferrer" className="red-social">
-                <InstagramOutlined />
-              </a>
+              <a href="https://facebook.com" target="_blank" rel="noreferrer" className="red-social"><FacebookOutlined /></a>
+              <a href="https://youtube.com" target="_blank" rel="noreferrer" className="red-social"><YoutubeOutlined /></a>
+              <a href="https://x.com" target="_blank" rel="noreferrer" className="red-social"><XOutlined /></a>
+              <a href="https://instagram.com" target="_blank" rel="noreferrer" className="red-social"><InstagramOutlined /></a>
             </div>
           </div>
 
           <div className="footer-contacto">
             <h4>Información de contacto</h4>
             <div className="contacto-item">
-              <PhoneOutlined style={{ color: '#0d9488' }} />
+              <PhoneOutlined style={{ color: 'rgba(255,255,255,0.7)' }} />
               <span>(593-7) 283 8323 / 284 3619 / 0996976449</span>
             </div>
             <div className="contacto-item">
-              <MailOutlined style={{ color: '#0d9488' }} />
+              <MailOutlined style={{ color: 'rgba(255,255,255,0.7)' }} />
               <span>info@sudamericano.edu.ec</span>
             </div>
             <div className="contacto-item">
-              <MailOutlined style={{ color: '#0d9488' }} />
+              <MailOutlined style={{ color: 'rgba(255,255,255,0.7)' }} />
               <span>relpublicaits@sudamericano.edu.ec</span>
             </div>
             <div className="contacto-item">
-              <EnvironmentOutlined style={{ color: '#0d9488' }} />
+              <EnvironmentOutlined style={{ color: 'rgba(255,255,255,0.7)' }} />
               <span>Simón Bolívar y Manuel Vega Esq. Cuenca EC</span>
             </div>
             <div className="contacto-item">
-              <EnvironmentOutlined style={{ color: '#0d9488' }} />
+              <EnvironmentOutlined style={{ color: 'rgba(255,255,255,0.7)' }} />
               <span>Edificio Huayna Cápac: Jaime Roldós 4-85</span>
             </div>
           </div>
@@ -301,13 +278,10 @@ function Landing() {
 
         <div className="footer-bottom">
           <span>© 2026 Instituto de Tecnologías Sudamericano. Todos los derechos reservados.</span>
-          <span style={{ color: '#9ca3af', fontSize: 12 }}>
-            Biblioteca Daniel Perazzo · Cuenca, Ecuador
-          </span>
+          <span>Biblioteca Daniel Perazzo · Cuenca, Ecuador</span>
         </div>
       </footer>
 
-      {/* SCROLL TO TOP */}
       {mostrarScrollTop && (
         <button className="scroll-top" onClick={scrollTop}>
           <ArrowUpOutlined />
