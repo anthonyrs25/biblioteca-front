@@ -97,3 +97,5 @@ export const crearRegistro = (data: {
 
 export const getStatsRegistros = (anio: number, mes: number) =>
   api.get(`/registros/stats/${anio}/${mes}`).then(r => r.data)
+
+export default api

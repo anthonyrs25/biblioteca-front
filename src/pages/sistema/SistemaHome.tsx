@@ -13,12 +13,13 @@ import {
 } from '@ant-design/icons'
 import Logo from '../../components/Logo'
 import { getDocentes, getLibros } from '../../api/biblioteca'
+import api from '../../api/biblioteca'
 
 interface Props {
   onDocenteDetectado: (docente: any) => void
 }
 
-function SistemaHome({ onDocenteDetectado: _ }: Props) {
+function SistemaHome({ onDocenteDetectado }: Props) {
   const navigate = useNavigate()
   const [hora, setHora] = useState(new Date())
   const [pulso, setPulso] = useState(false)
@@ -41,12 +42,28 @@ function SistemaHome({ onDocenteDetectado: _ }: Props) {
       setTotalLibros(libros.reduce((a: number, b: any) => a + b.totalEjemplares, 0))
     })
     getDocentes().then(docentes => {
-      // Solo contar usuarios con rol 'usuario' (excluir admin y bibliotecario)
       const soloDocentes = docentes.filter((d: any) => d.rol === 'usuario')
       setDocentesCount(soloDocentes.length)
       const totalPrestamos = soloDocentes.reduce((a: number, d: any) => a + d.prestamosActivos, 0)
       setPrestamosActivos(totalPrestamos)
     })
+  }, [])
+
+  // Polling: consulta cada 2 segundos si hay una tarjeta RFID pendiente
+  useEffect(() => {
+    const poll = setInterval(async () => {
+      try {
+        const res = await api.get('/rfid/pendiente')
+        const docente = res.data
+        if (docente && docente.id) {
+          onDocenteDetectado(docente)
+          navigate('/sistema/docente')
+        }
+      } catch {
+        // sin tarjeta pendiente, ignorar
+      }
+    }, 2000)
+    return () => clearInterval(poll)
   }, [])
 
   const handleLogout = () => {
@@ -113,22 +130,21 @@ function SistemaHome({ onDocenteDetectado: _ }: Props) {
 
       <div className="stats-row">
         <div className="stat-glass" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema/gestion/libros')}>
-          <BookOutlined style={{ fontSize: 20, color: '#0d9488', marginBottom: 8 }} />
+          <BookOutlined style={{ fontSize: 20, color: '#00796B', marginBottom: 8 }} />
           <Statistic title="Libros registrados" value={totalLibros}
-            valueStyle={{ color: '#0f172a', fontSize: 32, fontWeight: 800 }} />
+            valueStyle={{ color: '#1A2332', fontSize: 32, fontWeight: 800 }} />
         </div>
         <div className="stat-glass" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema/gestion')}>
-          <SwapOutlined style={{ fontSize: 20, color: '#0ea5e9', marginBottom: 8 }} />
+          <SwapOutlined style={{ fontSize: 20, color: '#00796B', marginBottom: 8 }} />
           <Statistic title="Préstamos activos" value={prestamosActivos}
-            valueStyle={{ color: '#0f172a', fontSize: 32, fontWeight: 800 }} />
+            valueStyle={{ color: '#1A2332', fontSize: 32, fontWeight: 800 }} />
         </div>
         <div className="stat-glass" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema/gestion/docentes')}>
-          <TeamOutlined style={{ fontSize: 20, color: '#8b5cf6', marginBottom: 8 }} />
+          <TeamOutlined style={{ fontSize: 20, color: '#00796B', marginBottom: 8 }} />
           <Statistic title="Docentes registrados" value={docentesCount}
-            valueStyle={{ color: '#0f172a', fontSize: 32, fontWeight: 800 }} />
+            valueStyle={{ color: '#1A2332', fontSize: 32, fontWeight: 800 }} />
         </div>
       </div>
-
     </div>
   )
 }
