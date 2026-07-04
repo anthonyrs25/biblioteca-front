@@ -54,9 +54,9 @@ function SistemaHome({ onDocenteDetectado }: Props) {
     const poll = setInterval(async () => {
       try {
         const res = await api.get('/rfid/pendiente')
-        const docente = res.data
-        if (docente && docente.id) {
-          onDocenteDetectado(docente)
+        const data = res.data
+        if (data && data.usuario && data.usuario.id) {
+          onDocenteDetectado(data.usuario)
           navigate('/sistema/docente')
         }
       } catch {
@@ -65,6 +65,8 @@ function SistemaHome({ onDocenteDetectado }: Props) {
     }, 2000)
     return () => clearInterval(poll)
   }, [])
+
+
 
   const handleLogout = () => {
     localStorage.removeItem('biblioteca_token')
