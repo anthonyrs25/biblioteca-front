@@ -2,24 +2,14 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Statistic } from 'antd'
 import {
-  WifiOutlined,
-  BookOutlined,
-  TeamOutlined,
-  SwapOutlined,
-  ClockCircleOutlined,
-  LogoutOutlined,
-  BarChartOutlined,
-  SettingOutlined,
+  WifiOutlined, BookOutlined, TeamOutlined, SwapOutlined,
+  ClockCircleOutlined, LogoutOutlined, BarChartOutlined, SettingOutlined,
 } from '@ant-design/icons'
 import Logo from '../../components/Logo'
 import { getDocentes, getLibros } from '../../api/biblioteca'
-import api from '../../api/biblioteca'
 
-interface Props {
-  onDocenteDetectado: (docente: any) => void
-}
-
-function SistemaHome({ onDocenteDetectado }: Props) {
+// Props vacíos — el polling ahora vive en App.tsx
+function SistemaHome() {
   const navigate = useNavigate()
   const [hora, setHora] = useState(new Date())
   const [pulso, setPulso] = useState(false)
@@ -44,29 +34,10 @@ function SistemaHome({ onDocenteDetectado }: Props) {
     getDocentes().then(docentes => {
       const soloDocentes = docentes.filter((d: any) => d.rol === 'usuario')
       setDocentesCount(soloDocentes.length)
-      const totalPrestamos = soloDocentes.reduce((a: number, d: any) => a + d.prestamosActivos, 0)
-      setPrestamosActivos(totalPrestamos)
+      const total = soloDocentes.reduce((a: number, d: any) => a + d.prestamosActivos, 0)
+      setPrestamosActivos(total)
     })
   }, [])
-
-  // Polling: consulta cada 2 segundos si hay una tarjeta RFID pendiente
-  useEffect(() => {
-    const poll = setInterval(async () => {
-      try {
-        const res = await api.get('/rfid/pendiente')
-        const data = res.data
-        if (data && data.usuario && data.usuario.id) {
-          onDocenteDetectado(data.usuario)
-          navigate('/sistema/docente')
-        }
-      } catch {
-        // sin tarjeta pendiente, ignorar
-      }
-    }, 2000)
-    return () => clearInterval(poll)
-  }, [])
-
-
 
   const handleLogout = () => {
     localStorage.removeItem('biblioteca_token')
@@ -77,9 +48,7 @@ function SistemaHome({ onDocenteDetectado }: Props) {
   return (
     <div className="home-page">
       <div className="home-header">
-        <div className="home-header-left">
-          <Logo />
-        </div>
+        <div className="home-header-left"><Logo /></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div className="home-clock">
             <ClockCircleOutlined style={{ marginRight: 6 }} />
@@ -99,24 +68,17 @@ function SistemaHome({ onDocenteDetectado }: Props) {
 
       <div className="home-hero">
         <div className="hero-left">
-          <div className="hero-badge">
-            <WifiOutlined /> Esperando tarjeta RFID
-          </div>
+          <div className="hero-badge"><WifiOutlined /> Esperando tarjeta RFID</div>
           <h1 className="hero-title">
-            Sistema de<br />
-            <span>Gestión</span><br />
-            Bibliotecaria
+            Sistema de<br /><span>Gestión</span><br />Bibliotecaria
           </h1>
           <p className="hero-subtitle">
-            Acerque su tarjeta RFID al lector para registrar
-            préstamos, devoluciones y uso de sala.
+            Acerque su tarjeta RFID al lector para registrar préstamos, devoluciones y uso de sala.
           </p>
         </div>
         <div className="hero-right">
           <div className="blob-container">
-            <div className="blob blob-1" />
-            <div className="blob blob-2" />
-            <div className="blob blob-3" />
+            <div className="blob blob-1" /><div className="blob blob-2" /><div className="blob blob-3" />
             <div className="blob-shine" />
             <div className="radar-container">
               <div className={`radar-ring ring-1 ${pulso ? 'pulso' : ''}`} />
