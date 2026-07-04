@@ -51,7 +51,7 @@ function Prestamo({ docente, onTerminar, enModal }: Props) {
       await crearPrestamo(docente.id, libroSeleccionado.id)
       await crearRegistro({
         tipo: 'prestamo',
-        docenteId: docente.id,
+        usuarioId: docente.id,
         libroId: libroSeleccionado.id,
         carrera: docente.carreras?.[0]?.carrera?.nombre,
       })

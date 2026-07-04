@@ -85,7 +85,7 @@ export const devolverPrestamo = (prestamoId: number) =>
 
 export const crearRegistro = (data: {
   tipo: string
-  docenteId: number
+  usuarioId: number
   actividad?: string
   detalle?: string
   carrera?: string
@@ -94,6 +94,7 @@ export const crearRegistro = (data: {
   jornada?: string
   libroId?: number
 }) => api.post('/registros', data).then(r => r.data)
+
 
 export const getStatsRegistros = (anio: number, mes: number) =>
   api.get(`/registros/stats/${anio}/${mes}`).then(r => r.data)

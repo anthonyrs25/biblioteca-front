@@ -28,7 +28,7 @@ function Devolucion({ docente, onTerminar, enModal }: Props) {
       await devolverPrestamo(seleccionado)
       await crearRegistro({
         tipo: 'devolucion',
-        docenteId: docente.id,
+        usuarioId: docente.id,
         libroId: prestamo?.libroId,
         carrera: docente.carreras?.[0]?.carrera?.nombre,
       })

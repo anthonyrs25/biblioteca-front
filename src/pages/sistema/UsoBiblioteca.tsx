@@ -67,7 +67,7 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
     try {
       await crearRegistro({
         tipo: 'uso',
-        docenteId: docente.id,
+        usuarioId: docente.id,
         actividad,
         detalle: detalle || undefined,
         carrera: carreraSeleccionada,
