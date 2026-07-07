@@ -38,6 +38,9 @@ export const crearDocente = (data: {
   carreras?: { nombre: string; ciclos: { numero: number; materias: string[] }[] }[]
 }) => api.post('/docentes', data).then(r => r.data)
 
+export const actualizarCiclosDocente = (id: number, ciclos: { numero: number; materias: string[] }[]) =>
+  api.patch(`/docentes/${id}/ciclos`, { ciclos }).then(r => r.data)
+
 // ───── LIBROS ─────
 
 export const getLibros = () =>

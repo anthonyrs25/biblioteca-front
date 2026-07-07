@@ -2,19 +2,17 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Statistic } from 'antd'
 import {
-  WifiOutlined, BookOutlined, TeamOutlined, SwapOutlined,
+  WifiOutlined, BookOutlined, SwapOutlined,
   ClockCircleOutlined, LogoutOutlined, BarChartOutlined, SettingOutlined,
 } from '@ant-design/icons'
 import Logo from '../../components/Logo'
 import { getDocentes, getLibros } from '../../api/biblioteca'
 
-// Props vacíos — el polling ahora vive en App.tsx
 function SistemaHome() {
   const navigate = useNavigate()
   const [hora, setHora] = useState(new Date())
   const [pulso, setPulso] = useState(false)
   const [totalLibros, setTotalLibros] = useState(0)
-  const [docentesCount, setDocentesCount] = useState(0)
   const [prestamosActivos, setPrestamosActivos] = useState(0)
 
   useEffect(() => {
@@ -33,7 +31,6 @@ function SistemaHome() {
     })
     getDocentes().then(docentes => {
       const soloDocentes = docentes.filter((d: any) => d.rol === 'usuario')
-      setDocentesCount(soloDocentes.length)
       const total = soloDocentes.reduce((a: number, d: any) => a + d.prestamosActivos, 0)
       setPrestamosActivos(total)
     })
@@ -98,14 +95,14 @@ function SistemaHome() {
           <Statistic title="Libros registrados" value={totalLibros}
             valueStyle={{ color: '#1A2332', fontSize: 32, fontWeight: 800 }} />
         </div>
-        <div className="stat-glass" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema/gestion')}>
+        <div className="stat-glass" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema/reportes?tab=prestamos')}>
           <SwapOutlined style={{ fontSize: 20, color: '#00796B', marginBottom: 8 }} />
           <Statistic title="Préstamos activos" value={prestamosActivos}
             valueStyle={{ color: '#1A2332', fontSize: 32, fontWeight: 800 }} />
         </div>
         <div className="stat-glass" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema/gestion/docentes')}>
-          <TeamOutlined style={{ fontSize: 20, color: '#00796B', marginBottom: 8 }} />
-          <Statistic title="Docentes registrados" value={docentesCount}
+          <SwapOutlined style={{ fontSize: 20, color: '#00796B', marginBottom: 8 }} />
+          <Statistic title="Docentes registrados" value={0}
             valueStyle={{ color: '#1A2332', fontSize: 32, fontWeight: 800 }} />
         </div>
       </div>

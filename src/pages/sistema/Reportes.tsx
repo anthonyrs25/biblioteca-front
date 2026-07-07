@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Statistic, Progress, Tabs, Table, Tag, Select, DatePicker } from 'antd'
 import {
   ArrowLeftOutlined, BarChartOutlined, TeamOutlined,
@@ -12,7 +12,10 @@ type TabKey = 'resumen' | 'visitas' | 'prestamos'
 
 function Reportes() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<TabKey>('resumen')
+  const [searchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    (searchParams.get('tab') as TabKey) || 'resumen'
+  )
   const [stats, setStats] = useState<any>(null)
   const [totalLibros, setTotalLibros] = useState(0)
   const [disponibles, setDisponibles] = useState(0)
@@ -25,8 +28,8 @@ function Reportes() {
   const [docenteFiltro, setDocenteFiltro] = useState<number | undefined>()
   const [soloActivos, setSoloActivos] = useState(false)
 
-  const mesNombre = dayjs(`${anio}-${mes}-01`).toDate()
-    .toLocaleString('es-EC', { month: 'long', year: 'numeric' })
+  const mesNombre = dayjs(`${anio}-${String(mes).padStart(2, '0')}-01`)
+    .toDate().toLocaleString('es-EC', { month: 'long', year: 'numeric' })
 
   const cargarDatos = () => {
     setLoading(true)
@@ -62,20 +65,16 @@ function Reportes() {
     return porDocente && porEstado
   })
 
-  const columnasFecha = {
-    title: 'Fecha y hora',
-    dataIndex: 'fecha',
-    key: 'fecha',
-    render: (f: string) => {
-      const d = new Date(f)
-      return `${d.toLocaleDateString('es-EC')} ${d.toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}`
-    },
-    sorter: (a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime(),
-    defaultSortOrder: 'ascend' as any,
-  }
-
   const columnasRegistros = [
-    columnasFecha,
+    {
+      title: 'Fecha y hora', dataIndex: 'fecha', key: 'fecha',
+      render: (f: string) => {
+        const d = new Date(f)
+        return `${d.toLocaleDateString('es-EC')} ${d.toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}`
+      },
+      sorter: (a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime(),
+      defaultSortOrder: 'ascend' as any,
+    },
     { title: 'Persona', dataIndex: 'usuario', key: 'usuario', render: (u: any) => u?.nombre || '—' },
     {
       title: 'Tipo', dataIndex: 'tipo', key: 'tipo',
@@ -155,7 +154,6 @@ function Reportes() {
           }}
           format="MMMM YYYY"
           style={{ width: 160 }}
-          locale={{ lang: { locale: 'es' } } as any}
         />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -212,35 +210,22 @@ function Reportes() {
               <>
                 {filtros}
                 <div className="kpi-grid">
-                  <div
-                    className="kpi-card"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setActiveTab('visitas')}
-                  >
+                  <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('visitas')}>
                     <TeamOutlined style={{ fontSize: 22, color: '#00796B', marginBottom: 8 }} />
                     <Statistic title="Personas que visitaron" value={stats?.totalVisitas ?? 0} />
                     <div style={{ fontSize: 11, color: '#00796B', marginTop: 4 }}>Ver detalle →</div>
                   </div>
-                  <div
-                    className="kpi-card"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => { setSoloActivos(false); setActiveTab('prestamos') }}
-                  >
+                  <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => { setSoloActivos(false); setActiveTab('prestamos') }}>
                     <SwapOutlined style={{ fontSize: 22, color: '#00796B', marginBottom: 8 }} />
                     <Statistic title="Libros prestados" value={stats?.prestamos ?? 0} />
                     <div style={{ fontSize: 11, color: '#00796B', marginTop: 4 }}>Ver detalle →</div>
                   </div>
-                  <div
-                    className="kpi-card"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => { setSoloActivos(true); setActiveTab('prestamos') }}
-                  >
+                  <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => { setSoloActivos(false); setActiveTab('prestamos') }}>
                     <CheckCircleOutlined style={{ fontSize: 22, color: '#00796B', marginBottom: 8 }} />
                     <Statistic title="Libros devueltos" value={stats?.devoluciones ?? 0} />
                     <div style={{ fontSize: 11, color: '#00796B', marginTop: 4 }}>Ver detalle →</div>
                   </div>
                 </div>
-
                 <div className="reportes-grid-inferior">
                   <div className="reporte-card">
                     <h3 className="reporte-card-titulo">Libros disponibles ahora</h3>
@@ -318,12 +303,6 @@ function Reportes() {
                     pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50', '100'], showTotal: t => `${t} préstamos` }}
                     scroll={{ x: true }}
                     size="small"
-                    rowClassName={(r: any) => {
-                      if (!r.activo) return ''
-                      if (!r.fechaDevolucionEsperada) return ''
-                      const dias = Math.ceil((new Date(r.fechaDevolucionEsperada).getTime() - Date.now()) / 86400000)
-                      return dias < 0 ? 'ant-table-row-danger' : ''
-                    }}
                   />
                 </div>
               </>

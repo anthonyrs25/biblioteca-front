@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Table, Button, Modal, Form, Input, App, Tag, Divider } from 'antd'
 import { ArrowLeftOutlined, EditOutlined, TeamOutlined, CreditCardOutlined, PlusOutlined } from '@ant-design/icons'
-import { getDocentes, actualizarDocente, crearDocente } from '../../api/biblioteca'
+import { getDocentes, actualizarDocente, crearDocente, actualizarCiclosDocente } from '../../api/biblioteca'
 
 const CARRERAS_DISPONIBLES = [
   'Desarrollo de Software',
@@ -25,6 +25,7 @@ function GestionDocentes() {
   const [modalEditar, setModalEditar] = useState(false)
   const [modalCrear, setModalCrear] = useState(false)
   const [editando, setEditando] = useState<any | null>(null)
+  const [ciclosEditando, setCiclosEditando] = useState<{ numero: number; materias: string }[]>([])
   const [formEditar] = Form.useForm()
   const [formCrear] = Form.useForm()
 
@@ -40,6 +41,11 @@ function GestionDocentes() {
 
   const abrirEditar = (docente: any) => {
     setEditando(docente)
+    const ciclos = docente.carreras?.[0]?.carrera?.ciclos?.map((c: any) => ({
+      numero: c.numero,
+      materias: c.materias?.map((m: any) => m.nombre).join(', ') || '',
+    })) || []
+    setCiclosEditando(ciclos.length > 0 ? ciclos : [{ numero: 2, materias: '' }])
     formEditar.setFieldsValue({
       rfid: docente.rfid,
       nombre: docente.nombre,
@@ -51,7 +57,17 @@ function GestionDocentes() {
   const handleGuardarEdicion = async () => {
     try {
       const valores = await formEditar.validateFields()
-      await actualizarDocente(editando.id, valores)
+      await actualizarDocente(editando.id, {
+        rfid: valores.rfid,
+        nombre: valores.nombre,
+        iniciales: valores.iniciales,
+      })
+      if (ciclosEditando.length > 0) {
+        await actualizarCiclosDocente(editando.id, ciclosEditando.map(c => ({
+          numero: c.numero,
+          materias: c.materias.split(',').map((m: string) => m.trim()).filter(Boolean),
+        })))
+      }
       message.success('Docente actualizado')
       setModalEditar(false)
       cargarDocentes()
@@ -98,8 +114,7 @@ function GestionDocentes() {
         : <Tag color="default">Sin llavero</Tag>,
     },
     {
-      title: 'Carrera',
-      key: 'carrera',
+      title: 'Carrera', key: 'carrera',
       render: (_: any, d: any) => {
         const carreras = d.carreras?.map((dc: any) => dc.carrera?.nombre).filter(Boolean)
         return carreras?.length > 0
@@ -131,7 +146,12 @@ function GestionDocentes() {
           </h1>
           <p className="reportes-subtitulo">Administra los docentes registrados en el sistema</p>
         </div>
-        <Button className="btn-exportar" icon={<PlusOutlined />} size="large" onClick={() => { formCrear.resetFields(); setModalCrear(true) }}>
+        <Button
+          className="btn-exportar"
+          icon={<PlusOutlined />}
+          size="large"
+          onClick={() => { formCrear.resetFields(); setModalCrear(true) }}
+        >
           Nuevo docente
         </Button>
       </div>
@@ -154,6 +174,7 @@ function GestionDocentes() {
         onCancel={() => setModalEditar(false)}
         okText="Guardar cambios"
         cancelText="Cancelar"
+        width={560}
       >
         <Form form={formEditar} layout="vertical" style={{ marginTop: 20 }}>
           <Form.Item name="nombre" label="Nombre completo" rules={[{ required: true }]}>
@@ -165,20 +186,55 @@ function GestionDocentes() {
           <Form.Item
             name="rfid"
             label="UID del llavero RFID"
-            extra="Acerca el llavero al lector y copia el UID del monitor serial del ESP32."
+            extra="Acerca el llavero al lector ESP32 y copia el UID del monitor serial."
           >
             <Input placeholder="Ej: 6AE13E3E" />
           </Form.Item>
         </Form>
+
         {editando && (
-          <div style={{ marginTop: 8, padding: '12px 16px', background: '#F5F7FA', borderRadius: 8 }}>
-            <p style={{ fontSize: 12, color: '#4A5568', margin: 0 }}>
-              <strong>Carreras asignadas:</strong>{' '}
-              {editando.carreras?.map((dc: any) => dc.carrera?.nombre).filter(Boolean).join(', ') || 'Ninguna'}
-            </p>
-            <p style={{ fontSize: 11, color: '#94A3B8', margin: '4px 0 0' }}>
-              Para modificar carreras, ciclos o materias contacta al administrador del sistema.
-            </p>
+          <div style={{ marginTop: 8 }}>
+            <Divider>Carreras y materias</Divider>
+            <div style={{ fontSize: 13, color: '#4A5568', marginBottom: 12 }}>
+              Carrera: <strong>{editando.carreras?.[0]?.carrera?.nombre || 'Sin carrera'}</strong>
+            </div>
+            {ciclosEditando.map((ciclo, i) => (
+              <div key={i} style={{ background: '#F5F7FA', borderRadius: 8, padding: '12px 16px', marginBottom: 10 }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#1A2332', whiteSpace: 'nowrap' }}>
+                    Ciclo {ciclo.numero}
+                  </span>
+                  <Input
+                    value={ciclo.materias}
+                    placeholder="Materias separadas por coma"
+                    onChange={e => {
+                      const nuevos = [...ciclosEditando]
+                      nuevos[i].materias = e.target.value
+                      setCiclosEditando(nuevos)
+                    }}
+                  />
+                  <Button
+                    danger size="small"
+                    onClick={() => setCiclosEditando(ciclosEditando.filter((_, j) => j !== i))}
+                  >✕</Button>
+                </div>
+              </div>
+            ))}
+            <Button
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                const maxCiclo = ciclosEditando.length > 0
+                  ? Math.max(...ciclosEditando.map(c => c.numero))
+                  : 1
+                setCiclosEditando([...ciclosEditando, { numero: maxCiclo + 1, materias: '' }])
+              }}
+            >
+              Agregar ciclo
+            </Button>
+            <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 8 }}>
+              Escribe las materias separadas por coma. Los cambios se aplican al guardar.
+            </div>
           </div>
         )}
       </Modal>
@@ -221,10 +277,7 @@ function GestionDocentes() {
             label="Materias"
             extra="Escribe las materias separadas por coma"
           >
-            <Input.TextArea
-              rows={2}
-              placeholder="Ej: Programación, Base de Datos, Matemáticas"
-            />
+            <Input.TextArea rows={2} placeholder="Ej: Programación, Base de Datos, Matemáticas" />
           </Form.Item>
         </Form>
       </Modal>

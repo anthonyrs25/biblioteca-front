@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Table, Button, Modal, Form, Input, InputNumber, App, Popconfirm, Tag, Select } from 'antd'
-import { ArrowLeftOutlined, PlusOutlined, EditOutlined, DeleteOutlined, BookOutlined, UploadOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, PlusOutlined, EditOutlined, DeleteOutlined, BookOutlined, UploadOutlined, SearchOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
 import { getLibros, crearLibro, actualizarLibro, eliminarLibro, buscarLibros, getProgramas } from '../../api/biblioteca'
 
@@ -24,7 +24,7 @@ function GestionLibros() {
   const [form] = Form.useForm()
   const [busqueda, setBusqueda] = useState('')
   const [programa, setPrograma] = useState('')
-  const [programas, setProgramas] = useState<string[]>([])
+  const [programas, setProgramas] = useState<{ value: string; label: string }[]>([])
   const [pageSize, setPageSize] = useState(25)
   const [importando, setImportando] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -41,10 +41,18 @@ function GestionLibros() {
   }
 
   useEffect(() => {
-    getProgramas().then(data => setProgramas(data.map(limpiarPrograma)))
+    getProgramas().then(data => {
+      const opciones = data
+        .map((p: string) => ({ value: p, label: limpiarPrograma(p) }))
+        .sort((a: any, b: any) => a.label.localeCompare(b.label))
+      setProgramas(opciones)
+    })
   }, [])
 
-  useEffect(() => { cargarLibros() }, [busqueda, programa])
+  useEffect(() => {
+  const t = setTimeout(() => { cargarLibros() }, 300)
+  return () => clearTimeout(t)
+}, [busqueda, programa])
 
   const abrirCrear = () => { setEditando(null); form.resetFields(); setModalAbierto(true) }
   const abrirEditar = (libro: any) => { setEditando(libro); form.setFieldsValue(libro); setModalAbierto(true) }
@@ -202,12 +210,13 @@ function GestionLibros() {
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Input.Search
+        <Input
           placeholder="Buscar por título, autor o código..."
           allowClear
           style={{ maxWidth: 380 }}
-          onSearch={setBusqueda}
-          onChange={e => { if (!e.target.value) setBusqueda('') }}
+          prefix={<SearchOutlined style={{ color: '#94A3B8' }} />}
+          onChange={e => setBusqueda(e.target.value)}
+          value={busqueda}
         />
         <Select
           placeholder="Todos los programas"
@@ -215,7 +224,11 @@ function GestionLibros() {
           style={{ minWidth: 260 }}
           value={programa || undefined}
           onChange={val => setPrograma(val || '')}
-          options={programas.map(p => ({ value: p, label: p }))}
+          options={programas}
+          showSearch
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
         />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
           <span style={{ fontSize: 13, color: '#4A5568' }}>Mostrar:</span>
