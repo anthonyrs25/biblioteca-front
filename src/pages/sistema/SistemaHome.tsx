@@ -1,19 +1,23 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Statistic } from 'antd'
+import { Button, Statistic, Modal, Input, Empty } from 'antd'
 import {
-  WifiOutlined, BookOutlined, SwapOutlined,
-  ClockCircleOutlined, LogoutOutlined, BarChartOutlined, SettingOutlined,
+  WifiOutlined, BookOutlined, SwapOutlined, TeamOutlined,
+  ClockCircleOutlined, LogoutOutlined, BarChartOutlined, SettingOutlined, SearchOutlined,
 } from '@ant-design/icons'
 import Logo from '../../components/Logo'
 import { getDocentes, getLibros } from '../../api/biblioteca'
 
-function SistemaHome() {
+function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
   const navigate = useNavigate()
   const [hora, setHora] = useState(new Date())
   const [pulso, setPulso] = useState(false)
   const [totalLibros, setTotalLibros] = useState(0)
   const [prestamosActivos, setPrestamosActivos] = useState(0)
+  const [totalDocentes, setTotalDocentes] = useState(0)
+  const [docentes, setDocentes] = useState<any[]>([])
+  const [modalManual, setModalManual] = useState(false)
+  const [busquedaManual, setBusquedaManual] = useState('')
 
   useEffect(() => {
     const t = setInterval(() => setHora(new Date()), 1000)
@@ -29,12 +33,24 @@ function SistemaHome() {
     getLibros().then(libros => {
       setTotalLibros(libros.reduce((a: number, b: any) => a + b.totalEjemplares, 0))
     })
-    getDocentes().then(docentes => {
-      const soloDocentes = docentes.filter((d: any) => d.rol === 'usuario')
+    getDocentes().then(data => {
+      const soloDocentes = data.filter((d: any) => d.rol === 'usuario')
+      setDocentes(soloDocentes)
+      setTotalDocentes(soloDocentes.length)
       const total = soloDocentes.reduce((a: number, d: any) => a + d.prestamosActivos, 0)
       setPrestamosActivos(total)
     })
   }, [])
+
+  const docentesFiltrados = docentes.filter((d: any) =>
+    d.nombre?.toLowerCase().includes(busquedaManual.toLowerCase()),
+  )
+
+  const seleccionarManual = (docente: any) => {
+    setModalManual(false)
+    setBusquedaManual('')
+    onDetectado(docente)
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('biblioteca_token')
@@ -72,6 +88,13 @@ function SistemaHome() {
           <p className="hero-subtitle">
             Acerque su tarjeta RFID al lector para registrar préstamos, devoluciones y uso de sala.
           </p>
+          <Button
+            onClick={() => setModalManual(true)}
+            icon={<TeamOutlined />}
+            style={{ marginTop: 8 }}
+          >
+            ¿Falla el lector? Registrar manualmente
+          </Button>
         </div>
         <div className="hero-right">
           <div className="blob-container">
@@ -102,10 +125,58 @@ function SistemaHome() {
         </div>
         <div className="stat-glass" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema/gestion/docentes')}>
           <SwapOutlined style={{ fontSize: 20, color: '#00796B', marginBottom: 8 }} />
-          <Statistic title="Docentes registrados" value={0}
+          <Statistic title="Docentes registrados" value={totalDocentes}
             valueStyle={{ color: '#1A2332', fontSize: 32, fontWeight: 800 }} />
         </div>
       </div>
+
+      <Modal
+        title="Registrar manualmente"
+        open={modalManual}
+        onCancel={() => { setModalManual(false); setBusquedaManual('') }}
+        footer={null}
+        destroyOnClose
+      >
+        <Input
+          placeholder="Buscar docente por nombre..."
+          prefix={<SearchOutlined style={{ color: '#9CA3AF' }} />}
+          value={busquedaManual}
+          onChange={e => setBusquedaManual(e.target.value)}
+          size="large"
+          autoFocus
+          allowClear
+          style={{ marginBottom: 16 }}
+        />
+        {docentesFiltrados.length === 0 ? (
+          <Empty description="No se encontraron docentes" />
+        ) : (
+          <div style={{ maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {docentesFiltrados.map((docente: any) => (
+              <button
+                key={docente.id}
+                className="opcion-btn"
+                onClick={() => seleccionarManual(docente)}
+                style={{ textAlign: 'left' }}
+              >
+                <span style={{
+                  width: 40, height: 40, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #00695C, #00897B)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', fontSize: 14, fontWeight: 700, flexShrink: 0,
+                }}>
+                  {docente.iniciales}
+                </span>
+                <span>
+                  <span className="opcion-titulo">{docente.nombre}</span>
+                  <span className="opcion-desc">
+                    {docente.carreras?.map((dc: any) => dc.carrera?.nombre).filter(Boolean).join(' · ') || 'Sin carrera asignada'}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

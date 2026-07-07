@@ -182,7 +182,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/sistema" element={
             <ProtectedRoute>
-              <SistemaHome />
+              <SistemaHome onDetectado={handleDetectado} />
             </ProtectedRoute>
           } />
           <Route path="/sistema/reportes" element={
