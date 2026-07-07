@@ -1,17 +1,32 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Table, Button, Modal, Form, Input, App, Tag } from 'antd'
-import { ArrowLeftOutlined, EditOutlined, TeamOutlined, CreditCardOutlined } from '@ant-design/icons'
-import { getDocentes, actualizarDocente } from '../../api/biblioteca'
+import { Table, Button, Modal, Form, Input, App, Tag, Divider } from 'antd'
+import { ArrowLeftOutlined, EditOutlined, TeamOutlined, CreditCardOutlined, PlusOutlined } from '@ant-design/icons'
+import { getDocentes, actualizarDocente, crearDocente } from '../../api/biblioteca'
+
+const CARRERAS_DISPONIBLES = [
+  'Desarrollo de Software',
+  'Diseño Gráfico',
+  'Gastronomía',
+  'Marketing Digital y Negocios',
+  'Turismo',
+  'Enfermería',
+  'Contabilidad y Asesoría Tributaria',
+  'Redes y Telecomunicaciones',
+  'Electricidad',
+  'Talento Humano',
+]
 
 function GestionDocentes() {
   const navigate = useNavigate()
   const { message } = App.useApp()
   const [docentes, setDocentes] = useState<any[]>([])
   const [cargando, setCargando] = useState(false)
-  const [modalAbierto, setModalAbierto] = useState(false)
+  const [modalEditar, setModalEditar] = useState(false)
+  const [modalCrear, setModalCrear] = useState(false)
   const [editando, setEditando] = useState<any | null>(null)
-  const [form] = Form.useForm()
+  const [formEditar] = Form.useForm()
+  const [formCrear] = Form.useForm()
 
   const cargarDocentes = () => {
     setCargando(true)
@@ -21,22 +36,24 @@ function GestionDocentes() {
       .finally(() => setCargando(false))
   }
 
-  useEffect(() => {
-    cargarDocentes()
-  }, [])
+  useEffect(() => { cargarDocentes() }, [])
 
   const abrirEditar = (docente: any) => {
     setEditando(docente)
-    form.setFieldsValue({ rfid: docente.rfid, nombre: docente.nombre, iniciales: docente.iniciales })
-    setModalAbierto(true)
+    formEditar.setFieldsValue({
+      rfid: docente.rfid,
+      nombre: docente.nombre,
+      iniciales: docente.iniciales,
+    })
+    setModalEditar(true)
   }
 
-  const handleGuardar = async () => {
+  const handleGuardarEdicion = async () => {
     try {
-      const valores = await form.validateFields()
+      const valores = await formEditar.validateFields()
       await actualizarDocente(editando.id, valores)
-      message.success('Docente actualizado — el llavero quedó vinculado')
-      setModalAbierto(false)
+      message.success('Docente actualizado')
+      setModalEditar(false)
       cargarDocentes()
     } catch (err: any) {
       if (err?.errorFields) return
@@ -44,12 +61,51 @@ function GestionDocentes() {
     }
   }
 
+  const handleCrearDocente = async () => {
+    try {
+      const valores = await formCrear.validateFields()
+      await crearDocente({
+        nombre: valores.nombre,
+        iniciales: valores.iniciales,
+        rfid: valores.rfid || undefined,
+        carreras: valores.carrera ? [{
+          nombre: valores.carrera,
+          ciclos: [{
+            numero: parseInt(valores.ciclo) || 1,
+            materias: valores.materias
+              ? valores.materias.split(',').map((m: string) => m.trim()).filter(Boolean)
+              : [],
+          }],
+        }] : undefined,
+      })
+      message.success('Docente creado correctamente')
+      setModalCrear(false)
+      formCrear.resetFields()
+      cargarDocentes()
+    } catch (err: any) {
+      if (err?.errorFields) return
+      message.error('Error al crear el docente')
+    }
+  }
+
   const columnas = [
     { title: 'Nombre', dataIndex: 'nombre', key: 'nombre' },
-    { title: 'Iniciales', dataIndex: 'iniciales', key: 'iniciales', width: 100 },
+    { title: 'Iniciales', dataIndex: 'iniciales', key: 'iniciales', width: 90 },
     {
-      title: 'RFID actual', dataIndex: 'rfid', key: 'rfid',
-      render: (rfid: string) => <Tag color="purple"><CreditCardOutlined style={{ marginRight: 4 }} />{rfid}</Tag>,
+      title: 'RFID', dataIndex: 'rfid', key: 'rfid',
+      render: (rfid: string) => rfid
+        ? <Tag color="cyan"><CreditCardOutlined style={{ marginRight: 4 }} />{rfid}</Tag>
+        : <Tag color="default">Sin llavero</Tag>,
+    },
+    {
+      title: 'Carrera',
+      key: 'carrera',
+      render: (_: any, d: any) => {
+        const carreras = d.carreras?.map((dc: any) => dc.carrera?.nombre).filter(Boolean)
+        return carreras?.length > 0
+          ? carreras.map((c: string) => <Tag key={c}>{c}</Tag>)
+          : <span style={{ color: '#94A3B8' }}>Sin carrera</span>
+      },
     },
     { title: 'Préstamos activos', dataIndex: 'prestamosActivos', key: 'prestamosActivos', width: 140 },
     {
@@ -66,17 +122,18 @@ function GestionDocentes() {
     <div className="reportes-page">
       <div className="reportes-header">
         <div>
-          <button className="btn-volver" onClick={() => navigate('/sistema/gestion')}>
-            <ArrowLeftOutlined /> Volver a Gestión
+          <button className="btn-volver" onClick={() => navigate('/sistema')}>
+            <ArrowLeftOutlined /> Volver al sistema
           </button>
           <h1 className="reportes-titulo">
-            <TeamOutlined style={{ marginRight: 12, color: '#0d9488' }} />
+            <TeamOutlined style={{ marginRight: 12, color: '#00796B' }} />
             Gestión de Docentes
           </h1>
-          <p className="reportes-subtitulo">
-            Cambia el llavero RFID asignado a cada docente
-          </p>
+          <p className="reportes-subtitulo">Administra los docentes registrados en el sistema</p>
         </div>
+        <Button className="btn-exportar" icon={<PlusOutlined />} size="large" onClick={() => { formCrear.resetFields(); setModalCrear(true) }}>
+          Nuevo docente
+        </Button>
       </div>
 
       <div className="reporte-card">
@@ -85,32 +142,89 @@ function GestionDocentes() {
           dataSource={docentes}
           rowKey="id"
           loading={cargando}
-          pagination={{ pageSize: 8 }}
+          pagination={{ pageSize: 10 }}
         />
       </div>
 
+      {/* Modal editar */}
       <Modal
         title="Editar docente"
-        open={modalAbierto}
-        onOk={handleGuardar}
-        onCancel={() => setModalAbierto(false)}
+        open={modalEditar}
+        onOk={handleGuardarEdicion}
+        onCancel={() => setModalEditar(false)}
         okText="Guardar cambios"
         cancelText="Cancelar"
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 20 }}>
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true, message: 'Ingresa el nombre' }]}>
+        <Form form={formEditar} layout="vertical" style={{ marginTop: 20 }}>
+          <Form.Item name="nombre" label="Nombre completo" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="iniciales" label="Iniciales" rules={[{ required: true, message: 'Ingresa las iniciales' }]}>
+          <Form.Item name="iniciales" label="Iniciales" rules={[{ required: true }]}>
             <Input maxLength={3} />
           </Form.Item>
           <Form.Item
             name="rfid"
             label="UID del llavero RFID"
-            rules={[{ required: true, message: 'Ingresa el UID del llavero' }]}
-            extra="Acerca el llavero nuevo al lector y copia el UID que muestra el sistema, o el monitor serial del ESP32."
+            extra="Acerca el llavero al lector y copia el UID del monitor serial del ESP32."
           >
-            <Input placeholder="Ej: A1B2C3D4" />
+            <Input placeholder="Ej: 6AE13E3E" />
+          </Form.Item>
+        </Form>
+        {editando && (
+          <div style={{ marginTop: 8, padding: '12px 16px', background: '#F5F7FA', borderRadius: 8 }}>
+            <p style={{ fontSize: 12, color: '#4A5568', margin: 0 }}>
+              <strong>Carreras asignadas:</strong>{' '}
+              {editando.carreras?.map((dc: any) => dc.carrera?.nombre).filter(Boolean).join(', ') || 'Ninguna'}
+            </p>
+            <p style={{ fontSize: 11, color: '#94A3B8', margin: '4px 0 0' }}>
+              Para modificar carreras, ciclos o materias contacta al administrador del sistema.
+            </p>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal crear */}
+      <Modal
+        title="Nuevo docente"
+        open={modalCrear}
+        onOk={handleCrearDocente}
+        onCancel={() => setModalCrear(false)}
+        okText="Crear docente"
+        cancelText="Cancelar"
+        width={560}
+      >
+        <Form form={formCrear} layout="vertical" style={{ marginTop: 20 }}>
+          <Form.Item name="nombre" label="Nombre completo" rules={[{ required: true }]}>
+            <Input placeholder="Ej: Ing. Juan Pérez" />
+          </Form.Item>
+          <Form.Item name="iniciales" label="Iniciales" rules={[{ required: true }]}>
+            <Input placeholder="Ej: JP" maxLength={3} />
+          </Form.Item>
+          <Form.Item name="rfid" label="UID del llavero RFID">
+            <Input placeholder="Ej: 6AE13E3E (opcional, se puede asignar después)" />
+          </Form.Item>
+          <Divider style={{ margin: '8px 0 16px' }}>Carrera (opcional)</Divider>
+          <Form.Item name="carrera" label="Carrera">
+            <select
+              style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid #E2E8F0', color: '#1A2332' }}
+              onChange={e => formCrear.setFieldValue('carrera', e.target.value)}
+            >
+              <option value="">Sin carrera por ahora</option>
+              {CARRERAS_DISPONIBLES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </Form.Item>
+          <Form.Item name="ciclo" label="Número de ciclo">
+            <Input placeholder="Ej: 2" type="number" min={1} max={8} />
+          </Form.Item>
+          <Form.Item
+            name="materias"
+            label="Materias"
+            extra="Escribe las materias separadas por coma"
+          >
+            <Input.TextArea
+              rows={2}
+              placeholder="Ej: Programación, Base de Datos, Matemáticas"
+            />
           </Form.Item>
         </Form>
       </Modal>

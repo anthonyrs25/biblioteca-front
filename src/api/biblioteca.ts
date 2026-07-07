@@ -99,4 +99,20 @@ export const crearRegistro = (data: {
 export const getStatsRegistros = (anio: number, mes: number) =>
   api.get(`/registros/stats/${anio}/${mes}`).then(r => r.data)
 
+export const getPrestamosActivos = () =>
+  api.get('/prestamos/activos').then(r => r.data)
+
+export const getTodosPrestamos = () =>
+  api.get('/prestamos/activos').then(r => r.data)
+
+export const getRegistrosMes = (anio: number, mes: number) =>
+  api.get(`/registros/mes/${anio}/${mes}`).then(r => r.data)
+
+export const crearDocente = (data: {
+  nombre: string
+  iniciales: string
+  rfid?: string
+  carreras?: { nombre: string; ciclos: { numero: number; materias: string[] }[] }[]
+}) => api.post('/docentes', data).then(r => r.data)
+
 export default api
