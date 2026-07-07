@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Table, Button, Modal, Form, Input, InputNumber, App, Popconfirm, Tag, Select, Upload } from 'antd'
+import { Table, Button, Modal, Form, Input, InputNumber, App, Popconfirm, Tag, Select } from 'antd'
 import { ArrowLeftOutlined, PlusOutlined, EditOutlined, DeleteOutlined, BookOutlined, UploadOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
 import { crearLibro, actualizarLibro, eliminarLibro, buscarLibros, getProgramas } from '../../api/biblioteca'
 
 function GestionLibros() {
   const navigate = useNavigate()
-  const { message, modal } = App.useApp()
+  const { message } = App.useApp()
   const [libros, setLibros] = useState<any[]>([])
   const [cargando, setCargando] = useState(false)
   const [modalAbierto, setModalAbierto] = useState(false)
