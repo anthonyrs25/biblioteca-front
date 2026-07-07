@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { App as AntApp, Modal } from 'antd'
 import Landing from './pages/Landing'
+import Catalogo from './pages/Catalogo'
 import Login from './pages/Login'
 import SistemaHome from './pages/sistema/SistemaHome'
 import UsoBiblioteca from './pages/sistema/UsoBiblioteca'
@@ -177,6 +178,7 @@ function App() {
 
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/catalogo" element={<Catalogo />} />
           <Route path="/login" element={<Login />} />
           <Route path="/sistema" element={
             <ProtectedRoute>

@@ -38,7 +38,7 @@ function Landing() {
   const [mostrarScrollTop, setMostrarScrollTop] = useState(false)
   const [totalLibros, setTotalLibros] = useState(0)
   const [disponibles, setDisponibles] = useState(0)
-  const [carreras, setCarreras] = useState<{ nombre: string; ejemplares: number }[]>([])
+  const [carreras, setCarreras] = useState<{ nombre: string; programa: string; ejemplares: number }[]>([])
 
   useEffect(() => {
     const handleScroll = () => setMostrarScrollTop(window.scrollY > 400)
@@ -56,6 +56,7 @@ function Landing() {
         .filter(d => d.programa !== 'EDUCACIÓN CONTINUA')
         .map(d => ({
           nombre: nombreCorto[d.programa] || d.programa,
+          programa: d.programa,
           ejemplares: d.total,
         }))
         .sort((a, b) => b.ejemplares - a.ejemplares)
@@ -181,10 +182,28 @@ function Landing() {
       {/* CATÁLOGO */}
       <section className="landing-section catalogo-section" id="catalogo">
         <div className="section-label">Catálogo</div>
-        <h2 className="section-title">Recursos por carrera</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12 }}>
+          <h2 className="section-title" style={{ marginBottom: 24 }}>Recursos por carrera</h2>
+          <Button
+            className="btn-hero-secondary"
+            icon={<BookOutlined />}
+            onClick={() => navigate('/catalogo')}
+            style={{ marginBottom: 24 }}
+          >
+            Buscar en todo el catálogo
+          </Button>
+        </div>
         <div className="catalogo-grid catalogo-grid-carreras">
           {carreras.map(carrera => (
-            <div key={carrera.nombre} className="catalogo-card catalogo-card-carrera">
+            <div
+              key={carrera.nombre}
+              className="catalogo-card catalogo-card-carrera"
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate(`/catalogo?programa=${encodeURIComponent(carrera.programa)}`)}
+              onKeyDown={e => { if (e.key === 'Enter') navigate(`/catalogo?programa=${encodeURIComponent(carrera.programa)}`) }}
+              style={{ cursor: 'pointer' }}
+            >
               <BookOutlined style={{ color: '#00796B', fontSize: 26, marginBottom: 12 }} />
               <h3 className="catalogo-titulo">{carrera.nombre}</h3>
               <div className="catalogo-footer-carrera">
