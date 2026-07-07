@@ -1,71 +1,88 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Statistic, Progress, Tabs, Table, Tag } from 'antd'
+import { Statistic, Progress, Tabs, Table, Tag, Select, DatePicker } from 'antd'
 import {
   ArrowLeftOutlined, BarChartOutlined, TeamOutlined,
   SwapOutlined, CheckCircleOutlined, BookOutlined,
 } from '@ant-design/icons'
-import { getStatsRegistros, getLibros, getRegistrosMes, getPrestamosActivos } from '../../api/biblioteca'
+import dayjs, { Dayjs } from 'dayjs'
+import { getStatsRegistros, getLibros, getRegistrosMes, getTodosLosPrestamos, getDocentes } from '../../api/biblioteca'
+
+type TabKey = 'resumen' | 'visitas' | 'prestamos'
 
 function Reportes() {
   const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<TabKey>('resumen')
   const [stats, setStats] = useState<any>(null)
   const [totalLibros, setTotalLibros] = useState(0)
   const [disponibles, setDisponibles] = useState(0)
   const [registros, setRegistros] = useState<any[]>([])
   const [prestamos, setPrestamos] = useState<any[]>([])
+  const [docentes, setDocentes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [anio, setAnio] = useState(dayjs().year())
+  const [mes, setMes] = useState(dayjs().month() + 1)
+  const [docenteFiltro, setDocenteFiltro] = useState<number | undefined>()
+  const [soloActivos, setSoloActivos] = useState(false)
 
-  const ahora = new Date()
-  const anio = ahora.getFullYear()
-  const mes = ahora.getMonth() + 1
-  const mesNombre = ahora.toLocaleString('es-EC', { month: 'long', year: 'numeric' })
+  const mesNombre = dayjs(`${anio}-${mes}-01`).toDate()
+    .toLocaleString('es-EC', { month: 'long', year: 'numeric' })
 
-  useEffect(() => {
+  const cargarDatos = () => {
+    setLoading(true)
     Promise.all([
       getStatsRegistros(anio, mes),
       getLibros(),
       getRegistrosMes(anio, mes),
-      getPrestamosActivos(),
-    ]).then(([s, libros, regs, pres]) => {
+      getTodosLosPrestamos(),
+      getDocentes(),
+    ]).then(([s, libros, regs, pres, docs]) => {
       setStats(s)
       setTotalLibros(libros.reduce((a: number, b: any) => a + b.totalEjemplares, 0))
       setDisponibles(libros.reduce((a: number, b: any) => a + b.disponibles, 0))
       setRegistros(regs)
       setPrestamos(pres)
+      setDocentes(docs.filter((d: any) => d.rol === 'usuario'))
     }).finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { cargarDatos() }, [anio, mes])
 
   const maxCarrera = stats?.porCarrera?.length > 0
     ? Math.max(...stats.porCarrera.map((c: any) => c.visitas))
     : 1
 
+  const registrosFiltrados = registros.filter(r =>
+    !docenteFiltro || r.usuario?.id === docenteFiltro
+  )
+
+  const prestamosFiltrados = prestamos.filter(p => {
+    const porDocente = !docenteFiltro || p.usuario?.id === docenteFiltro
+    const porEstado = !soloActivos || p.activo
+    return porDocente && porEstado
+  })
+
+  const columnasFecha = {
+    title: 'Fecha y hora',
+    dataIndex: 'fecha',
+    key: 'fecha',
+    render: (f: string) => {
+      const d = new Date(f)
+      return `${d.toLocaleDateString('es-EC')} ${d.toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}`
+    },
+    sorter: (a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime(),
+    defaultSortOrder: 'ascend' as any,
+  }
+
   const columnasRegistros = [
+    columnasFecha,
+    { title: 'Persona', dataIndex: 'usuario', key: 'usuario', render: (u: any) => u?.nombre || '—' },
     {
-      title: 'Fecha y hora',
-      dataIndex: 'fecha',
-      key: 'fecha',
-      render: (f: string) => {
-        const d = new Date(f)
-        return <span>{d.toLocaleDateString('es-EC')} {d.toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}</span>
-      },
-      sorter: (a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime(),
-      defaultSortOrder: 'ascend' as any,
-    },
-    {
-      title: 'Persona',
-      dataIndex: 'usuario',
-      key: 'usuario',
-      render: (u: any) => u?.nombre || '—',
-    },
-    {
-      title: 'Tipo',
-      dataIndex: 'tipo',
-      key: 'tipo',
+      title: 'Tipo', dataIndex: 'tipo', key: 'tipo',
       render: (t: string) => {
-        const colores: Record<string, string> = { uso: 'cyan', prestamo: 'blue', devolucion: 'green' }
-        const etiquetas: Record<string, string> = { uso: 'Uso sala', prestamo: 'Préstamo', devolucion: 'Devolución' }
-        return <Tag color={colores[t] || 'default'}>{etiquetas[t] || t}</Tag>
+        const col: Record<string, string> = { uso: 'cyan', prestamo: 'blue', devolucion: 'green' }
+        const lab: Record<string, string> = { uso: 'Uso sala', prestamo: 'Préstamo', devolucion: 'Devolución' }
+        return <Tag color={col[t] || 'default'}>{lab[t] || t}</Tag>
       },
     },
     { title: 'Actividad', dataIndex: 'actividad', key: 'actividad', render: (v: string) => v || '—' },
@@ -77,22 +94,14 @@ function Reportes() {
 
   const columnasPrestamos = [
     {
-      title: 'Fecha préstamo',
-      dataIndex: 'fechaPrestamo',
-      key: 'fechaPrestamo',
+      title: 'Fecha préstamo', dataIndex: 'fechaPrestamo', key: 'fechaPrestamo',
       render: (f: string) => new Date(f).toLocaleDateString('es-EC'),
       sorter: (a: any, b: any) => new Date(b.fechaPrestamo).getTime() - new Date(a.fechaPrestamo).getTime(),
+      defaultSortOrder: 'ascend' as any,
     },
+    { title: 'Docente', dataIndex: 'usuario', key: 'usuario', render: (u: any) => u?.nombre || '—' },
     {
-      title: 'Docente',
-      dataIndex: 'usuario',
-      key: 'usuario',
-      render: (u: any) => u?.nombre || '—',
-    },
-    {
-      title: 'Libro',
-      dataIndex: 'libro',
-      key: 'libro',
+      title: 'Libro', dataIndex: 'libro', key: 'libro',
       render: (l: any) => (
         <div>
           <div style={{ fontWeight: 600, color: '#1A2332' }}>{l?.titulo}</div>
@@ -100,33 +109,28 @@ function Reportes() {
         </div>
       ),
     },
+    { title: 'Código', dataIndex: 'libro', key: 'codigo', render: (l: any) => <Tag>{l?.codigo}</Tag> },
     {
-      title: 'Código libro',
-      dataIndex: 'libro',
-      key: 'codigo',
-      render: (l: any) => <Tag>{l?.codigo}</Tag>,
+      title: 'Devolución esperada', dataIndex: 'fechaDevolucionEsperada', key: 'fechaDevolucionEsperada',
+      render: (f: string, row: any) => {
+        if (!row.activo) return <span style={{ color: '#94A3B8' }}>—</span>
+        if (!f) return <span style={{ color: '#94A3B8' }}>No definida</span>
+        const dias = Math.ceil((new Date(f).getTime() - Date.now()) / 86400000)
+        return (
+          <div>
+            <div>{new Date(f).toLocaleDateString('es-EC')}</div>
+            <div style={{ fontSize: 11, color: dias < 0 ? '#DC2626' : dias <= 3 ? '#D97706' : '#15803D', fontWeight: 600 }}>
+              {dias < 0 ? `⚠️ ${Math.abs(dias)} días vencido` : dias === 0 ? '⚠️ Vence hoy' : `${dias} días restantes`}
+            </div>
+          </div>
+        )
+      },
     },
     {
-      title: 'Estado',
-      dataIndex: 'activo',
-      key: 'activo',
-      render: (activo: boolean, row: any) => {
-        if (activo) {
-          const diasRestantes = row.fechaDevolucion
-            ? Math.ceil((new Date(row.fechaDevolucion).getTime() - Date.now()) / 86400000)
-            : null
-          return (
-            <div>
-              <Tag color="orange">Activo</Tag>
-              {diasRestantes !== null && (
-                <div style={{ fontSize: 11, color: diasRestantes < 0 ? '#DC2626' : '#4A5568', marginTop: 2 }}>
-                  {diasRestantes < 0 ? `${Math.abs(diasRestantes)} días vencido` : `${diasRestantes} días restantes`}
-                </div>
-              )}
-            </div>
-          )
-        }
-        return (
+      title: 'Estado', dataIndex: 'activo', key: 'activo',
+      render: (activo: boolean, row: any) => activo
+        ? <Tag color="orange">Activo</Tag>
+        : (
           <div>
             <Tag color="green">Devuelto</Tag>
             {row.fechaDevolucion && (
@@ -135,10 +139,52 @@ function Reportes() {
               </div>
             )}
           </div>
-        )
-      },
+        ),
     },
   ]
+
+  const filtros = (
+    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, padding: '12px 16px', background: '#F5F7FA', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Mes:</span>
+        <DatePicker
+          picker="month"
+          value={dayjs(`${anio}-${String(mes).padStart(2, '0')}-01`)}
+          onChange={(d: Dayjs | null) => {
+            if (d) { setAnio(d.year()); setMes(d.month() + 1) }
+          }}
+          format="MMMM YYYY"
+          style={{ width: 160 }}
+          locale={{ lang: { locale: 'es' } } as any}
+        />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Docente:</span>
+        <Select
+          placeholder="Todos los docentes"
+          allowClear
+          style={{ minWidth: 220 }}
+          value={docenteFiltro}
+          onChange={setDocenteFiltro}
+          options={docentes.map((d: any) => ({ value: d.id, label: d.nombre }))}
+        />
+      </div>
+      {activeTab === 'prestamos' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Estado:</span>
+          <Select
+            value={soloActivos ? 'activos' : 'todos'}
+            onChange={val => setSoloActivos(val === 'activos')}
+            style={{ width: 140 }}
+            options={[
+              { value: 'todos', label: 'Todos' },
+              { value: 'activos', label: 'Solo activos' },
+            ]}
+          />
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div className="reportes-page">
@@ -156,25 +202,42 @@ function Reportes() {
       </div>
 
       <Tabs
-        defaultActiveKey="resumen"
+        activeKey={activeTab}
+        onChange={k => setActiveTab(k as TabKey)}
         items={[
           {
             key: 'resumen',
             label: 'Resumen del mes',
             children: (
               <>
-                <div className="kpi-grid" style={{ marginTop: 16 }}>
-                  <div className="kpi-card">
+                {filtros}
+                <div className="kpi-grid">
+                  <div
+                    className="kpi-card"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setActiveTab('visitas')}
+                  >
                     <TeamOutlined style={{ fontSize: 22, color: '#00796B', marginBottom: 8 }} />
                     <Statistic title="Personas que visitaron" value={stats?.totalVisitas ?? 0} />
+                    <div style={{ fontSize: 11, color: '#00796B', marginTop: 4 }}>Ver detalle →</div>
                   </div>
-                  <div className="kpi-card">
+                  <div
+                    className="kpi-card"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => { setSoloActivos(false); setActiveTab('prestamos') }}
+                  >
                     <SwapOutlined style={{ fontSize: 22, color: '#00796B', marginBottom: 8 }} />
                     <Statistic title="Libros prestados" value={stats?.prestamos ?? 0} />
+                    <div style={{ fontSize: 11, color: '#00796B', marginTop: 4 }}>Ver detalle →</div>
                   </div>
-                  <div className="kpi-card">
+                  <div
+                    className="kpi-card"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => { setSoloActivos(true); setActiveTab('prestamos') }}
+                  >
                     <CheckCircleOutlined style={{ fontSize: 22, color: '#00796B', marginBottom: 8 }} />
                     <Statistic title="Libros devueltos" value={stats?.devoluciones ?? 0} />
+                    <div style={{ fontSize: 11, color: '#00796B', marginTop: 4 }}>Ver detalle →</div>
                   </div>
                 </div>
 
@@ -188,8 +251,7 @@ function Reportes() {
                     <Progress
                       percent={totalLibros > 0 ? Math.round((disponibles / totalLibros) * 100) : 0}
                       strokeColor={{ '0%': '#00695C', '100%': '#00897B' }}
-                      trailColor="#E8F5F3"
-                      strokeWidth={12} strokeLinecap="round" showInfo={false}
+                      trailColor="#E8F5F3" strokeWidth={12} strokeLinecap="round" showInfo={false}
                     />
                   </div>
                   <div className="reporte-card">
@@ -208,14 +270,13 @@ function Reportes() {
                             <Progress
                               percent={Math.round((c.visitas / maxCarrera) * 100)}
                               strokeColor={{ '0%': '#00695C', '100%': '#00897B' }}
-                              trailColor="#E8F5F3"
-                              strokeWidth={10} strokeLinecap="round" showInfo={false}
+                              trailColor="#E8F5F3" strokeWidth={10} strokeLinecap="round" showInfo={false}
                             />
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p style={{ color: '#94A3B8', marginTop: 16 }}>Sin registros este mes todavía.</p>
+                      <p style={{ color: '#94A3B8', marginTop: 16 }}>Sin registros este mes.</p>
                     )}
                   </div>
                 </div>
@@ -224,36 +285,48 @@ function Reportes() {
           },
           {
             key: 'visitas',
-            label: `Registro de visitas (${registros.length})`,
+            label: `Registro de visitas (${registrosFiltrados.length})`,
             children: (
-              <div className="reporte-card" style={{ marginTop: 16 }}>
-                <Table
-                  columns={columnasRegistros}
-                  dataSource={registros}
-                  rowKey="id"
-                  loading={loading}
-                  pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50', '100'] }}
-                  scroll={{ x: true }}
-                  size="small"
-                />
-              </div>
+              <>
+                {filtros}
+                <div className="reporte-card">
+                  <Table
+                    columns={columnasRegistros}
+                    dataSource={registrosFiltrados}
+                    rowKey="id"
+                    loading={loading}
+                    pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50', '100'], showTotal: t => `${t} registros` }}
+                    scroll={{ x: true }}
+                    size="small"
+                  />
+                </div>
+              </>
             ),
           },
           {
             key: 'prestamos',
-            label: `Préstamos activos (${prestamos.filter((p: any) => p.activo).length})`,
+            label: `Préstamos (${prestamosFiltrados.length})`,
             children: (
-              <div className="reporte-card" style={{ marginTop: 16 }}>
-                <Table
-                  columns={columnasPrestamos}
-                  dataSource={prestamos}
-                  rowKey="id"
-                  loading={loading}
-                  pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50', '100'] }}
-                  scroll={{ x: true }}
-                  size="small"
-                />
-              </div>
+              <>
+                {filtros}
+                <div className="reporte-card">
+                  <Table
+                    columns={columnasPrestamos}
+                    dataSource={prestamosFiltrados}
+                    rowKey="id"
+                    loading={loading}
+                    pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50', '100'], showTotal: t => `${t} préstamos` }}
+                    scroll={{ x: true }}
+                    size="small"
+                    rowClassName={(r: any) => {
+                      if (!r.activo) return ''
+                      if (!r.fechaDevolucionEsperada) return ''
+                      const dias = Math.ceil((new Date(r.fechaDevolucionEsperada).getTime() - Date.now()) / 86400000)
+                      return dias < 0 ? 'ant-table-row-danger' : ''
+                    }}
+                  />
+                </div>
+              </>
             ),
           },
         ]}

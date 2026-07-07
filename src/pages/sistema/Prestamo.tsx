@@ -48,7 +48,7 @@ function Prestamo({ docente, onTerminar, enModal }: Props) {
     if (!tipoDocumento) { message.warning('Selecciona el tipo de documento de respaldo'); return }
     setGuardando(true)
     try {
-      await crearPrestamo(docente.id, libroSeleccionado.id)
+      await crearPrestamo(docente.id, libroSeleccionado.id, fechaDevolucion.toISOString())
       await crearRegistro({
         tipo: 'prestamo',
         usuarioId: docente.id,

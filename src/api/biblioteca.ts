@@ -4,7 +4,6 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
 })
 
-// Interceptor: manda el token JWT en cada request automáticamente
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('biblioteca_token')
   if (token) {
@@ -31,6 +30,13 @@ export const actualizarDocente = (id: number, data: Partial<{
   nombre: string
   iniciales: string
 }>) => api.patch(`/docentes/${id}`, data).then(r => r.data)
+
+export const crearDocente = (data: {
+  nombre: string
+  iniciales: string
+  rfid?: string
+  carreras?: { nombre: string; ciclos: { numero: number; materias: string[] }[] }[]
+}) => api.post('/docentes', data).then(r => r.data)
 
 // ───── LIBROS ─────
 
@@ -75,11 +81,17 @@ export const getProgramas = () =>
 
 // ───── PRÉSTAMOS ─────
 
-export const crearPrestamo = (docenteId: number, libroId: number) =>
-  api.post('/prestamos', { docenteId, libroId }).then(r => r.data)
+export const crearPrestamo = (docenteId: number, libroId: number, fechaDevolucionEsperada?: string) =>
+  api.post('/prestamos', { docenteId, libroId, fechaDevolucionEsperada }).then(r => r.data)
 
 export const devolverPrestamo = (prestamoId: number) =>
   api.patch(`/prestamos/devolver/${prestamoId}`).then(r => r.data)
+
+export const getPrestamosActivos = () =>
+  api.get('/prestamos/activos').then(r => r.data)
+
+export const getTodosLosPrestamos = () =>
+  api.get('/prestamos/todos').then(r => r.data)
 
 // ───── REGISTROS ─────
 
@@ -95,24 +107,10 @@ export const crearRegistro = (data: {
   libroId?: number
 }) => api.post('/registros', data).then(r => r.data)
 
-
 export const getStatsRegistros = (anio: number, mes: number) =>
   api.get(`/registros/stats/${anio}/${mes}`).then(r => r.data)
 
-export const getPrestamosActivos = () =>
-  api.get('/prestamos/activos').then(r => r.data)
-
-export const getTodosPrestamos = () =>
-  api.get('/prestamos/activos').then(r => r.data)
-
 export const getRegistrosMes = (anio: number, mes: number) =>
   api.get(`/registros/mes/${anio}/${mes}`).then(r => r.data)
-
-export const crearDocente = (data: {
-  nombre: string
-  iniciales: string
-  rfid?: string
-  carreras?: { nombre: string; ciclos: { numero: number; materias: string[] }[] }[]
-}) => api.post('/docentes', data).then(r => r.data)
 
 export default api
