@@ -70,6 +70,9 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
           <Button onClick={() => navigate('/sistema/reportes')} icon={<BarChartOutlined />} className="btn-reportes">
             Reportes
           </Button>
+          <Button onClick={() => setModalManual(true)} icon={<TeamOutlined />} className="btn-reportes">
+            Registrar
+          </Button>
           <Button onClick={handleLogout} icon={<LogoutOutlined />} className="btn-salir">
             Salir
           </Button>
@@ -88,13 +91,6 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
           <p className="hero-subtitle">
             Acerque su tarjeta RFID al lector para registrar préstamos, devoluciones y uso de sala.
           </p>
-          <Button
-            onClick={() => setModalManual(true)}
-            icon={<TeamOutlined />}
-            style={{ marginTop: 8 }}
-          >
-            ¿Falla el lector? Registrar manualmente
-          </Button>
         </div>
         <div className="hero-right">
           <div className="blob-container">

@@ -6,9 +6,22 @@ import {
   SwapOutlined, CheckCircleOutlined, BookOutlined,
 } from '@ant-design/icons'
 import dayjs, { Dayjs } from 'dayjs'
-import { getStatsRegistros, getLibros, getRegistrosMes, getTodosLosPrestamos, getDocentes, getTotalVisitasPublicas, getLibrosMasBuscados, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios } from '../../api/biblioteca'
+import { getStatsRegistros, getLibros, getRegistrosMes, getTodosLosPrestamos, getDocentes, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios } from '../../api/biblioteca'
 
 type TabKey = 'resumen' | 'visitas' | 'prestamos' | 'analitica'
+
+const nombreCorto: Record<string, string> = {
+  'TECNOLOGÍA SUPERIOR EN DESARROLLO DE SOFTWARE': 'Desarrollo de Software',
+  'TECNOLOGÍA SUPERIOR EN MARKETING': 'Marketing Digital y Negocios',
+  'TECNOLOGÍA SUPERIOR EN GASTRONOMÍA': 'Gastronomía',
+  'DISEÑO GRÁFICO CON NIVEL EQUIVALENTE A TECNOLOGÍA SUPERIOR': 'Diseño Gráfico',
+  'TECNOLOGÍA SUPERIOR EN TURISMO': 'Turismo',
+  'ENFERMERÍA': 'Enfermería',
+  'CONTABILIDAD Y ASESORIA TRIBUTARIA': 'Contabilidad y Asesoría Tributaria',
+  'REDES Y TELECOMUNICACIONES': 'Redes y Telecomunicaciones',
+  'ELECTRICIDAD': 'Electricidad',
+  'TECNOLOGÍA SUPERIOR EN ADMINISTRACIÓN DEL TALENTO HUMANO': 'Talento Humano',
+}
 
 function Reportes() {
   const navigate = useNavigate()
@@ -32,7 +45,9 @@ function Reportes() {
   const [rankingVisitas, setRankingVisitas] = useState<any[]>([])
   const [rankingLibros, setRankingLibros] = useState<any[]>([])
   const [rankingPrestamosUsuarios, setRankingPrestamosUsuarios] = useState<any[]>([])
+  const [rankingCarreras, setRankingCarreras] = useState<any[]>([])
   const [cargandoAnalitica, setCargandoAnalitica] = useState(true)
+  const [periodoAnalitica, setPeriodoAnalitica] = useState<string>('todo')
 
   const mesNombre = dayjs(`${anio}-${String(mes).padStart(2, '0')}-01`)
     .toDate().toLocaleString('es-EC', { month: 'long', year: 'numeric' })
@@ -60,19 +75,21 @@ function Reportes() {
   useEffect(() => {
     setCargandoAnalitica(true)
     Promise.all([
-      getTotalVisitasPublicas(),
-      getLibrosMasBuscados(),
-      getRankingVisitasUsuarios(),
-      getRankingPrestamosLibros(),
-      getRankingPrestamosUsuarios(),
-    ]).then(([visitas, buscados, visitasUsuarios, librosPrestados, prestamosUsuarios]) => {
+      getTotalVisitasPublicas(periodoAnalitica),
+      getLibrosMasBuscados(periodoAnalitica),
+      getCarrerasMasClickeadas(periodoAnalitica),
+      getRankingVisitasUsuarios(periodoAnalitica),
+      getRankingPrestamosLibros(periodoAnalitica),
+      getRankingPrestamosUsuarios(periodoAnalitica),
+    ]).then(([visitas, buscados, carreras, visitasUsuarios, librosPrestados, prestamosUsuarios]) => {
       setVisitasPublicas(visitas)
       setLibrosMasBuscados(buscados)
+      setRankingCarreras(carreras)
       setRankingVisitas(visitasUsuarios)
       setRankingLibros(librosPrestados)
       setRankingPrestamosUsuarios(prestamosUsuarios)
     }).finally(() => setCargandoAnalitica(false))
-  }, [])
+  }, [periodoAnalitica])
 
   const maxCarrera = stats?.porCarrera?.length > 0
     ? Math.max(...stats.porCarrera.map((c: any) => c.visitas))
@@ -216,6 +233,18 @@ function Reportes() {
     {
       title: 'Préstamos totales', dataIndex: 'prestamos', key: 'prestamos',
       sorter: (a: any, b: any) => a.prestamos - b.prestamos,
+      defaultSortOrder: 'descend' as any,
+    },
+  ]
+
+  const columnasRankingCarreras = [
+    {
+      title: 'Carrera', dataIndex: 'programa', key: 'programa',
+      render: (p: string) => nombreCorto[p] || p,
+    },
+    {
+      title: 'Clics desde el landing público', dataIndex: 'clics', key: 'clics',
+      sorter: (a: any, b: any) => a.clics - b.clics,
       defaultSortOrder: 'descend' as any,
     },
   ]
@@ -391,6 +420,22 @@ function Reportes() {
             label: 'Analítica',
             children: (
               <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                  <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Periodo:</span>
+                  <Select
+                    value={periodoAnalitica}
+                    onChange={setPeriodoAnalitica}
+                    style={{ width: 160 }}
+                    options={[
+                      { value: 'dia', label: 'Último día' },
+                      { value: 'semana', label: 'Última semana' },
+                      { value: 'mes', label: 'Último mes' },
+                      { value: 'anio', label: 'Último año' },
+                      { value: 'todo', label: 'Todo el historial' },
+                    ]}
+                  />
+                </div>
+
                 <div className="kpi-grid">
                   <div className="kpi-card">
                     <TeamOutlined style={{ fontSize: 22, color: '#00796B', marginBottom: 8 }} />
@@ -399,6 +444,20 @@ function Reportes() {
                 </div>
 
                 <div className="reportes-grid-inferior">
+                  <div className="reporte-card">
+                    <h3 className="reporte-card-titulo">
+                      <TeamOutlined style={{ marginRight: 8 }} />
+                      Carreras con más interés (clics en el landing)
+                    </h3>
+                    <Table
+                      columns={columnasRankingCarreras}
+                      dataSource={rankingCarreras}
+                      rowKey={(r: any) => r.programa}
+                      loading={cargandoAnalitica}
+                      pagination={{ pageSize: 10 }}
+                      size="small"
+                    />
+                  </div>
                   <div className="reporte-card">
                     <h3 className="reporte-card-titulo">
                       <BookOutlined style={{ marginRight: 8 }} />
@@ -413,6 +472,9 @@ function Reportes() {
                       size="small"
                     />
                   </div>
+                </div>
+
+                <div className="reportes-grid-inferior" style={{ marginTop: 20 }}>
                   <div className="reporte-card">
                     <h3 className="reporte-card-titulo">
                       <SwapOutlined style={{ marginRight: 8 }} />
@@ -427,9 +489,6 @@ function Reportes() {
                       size="small"
                     />
                   </div>
-                </div>
-
-                <div className="reportes-grid-inferior" style={{ marginTop: 20 }}>
                   <div className="reporte-card">
                     <h3 className="reporte-card-titulo">
                       <TeamOutlined style={{ marginRight: 8 }} />
@@ -444,6 +503,9 @@ function Reportes() {
                       size="small"
                     />
                   </div>
+                </div>
+
+                <div className="reportes-grid-inferior" style={{ marginTop: 20 }}>
                   <div className="reporte-card">
                     <h3 className="reporte-card-titulo">
                       <TeamOutlined style={{ marginRight: 8 }} />

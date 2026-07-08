@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Input, Select, Spin, Empty, Statistic } from 'antd'
-import { ArrowLeftOutlined, BookOutlined, SearchOutlined } from '@ant-design/icons'
+import { Input, Select, Table, Tag, Modal, Statistic, Button, Tooltip } from 'antd'
+import { ArrowLeftOutlined, SearchOutlined, ClockCircleOutlined } from '@ant-design/icons'
 import Logo from '../components/Logo'
 import { buscarLibros, getProgramas, registrarEventoPublico } from '../api/biblioteca'
 
@@ -27,6 +27,7 @@ function Catalogo() {
   const [programas, setProgramas] = useState<{ value: string; label: string }[]>([])
   const [libros, setLibros] = useState<any[]>([])
   const [cargando, setCargando] = useState(false)
+  const [libroSeleccionado, setLibroSeleccionado] = useState<any | null>(null)
 
   useEffect(() => {
     getProgramas().then((data: string[]) => {
@@ -64,6 +65,39 @@ function Catalogo() {
     setSearchParams(params)
   }
 
+  // Solo abrir el detalle es una señal real de interés — por eso el tracking va aquí,
+  // no en la lista completa (evita inflar "clics" con resultados que el usuario ni miró)
+  const abrirDetalle = (libro: any) => {
+    setLibroSeleccionado(libro)
+    registrarEventoPublico({ tipo: 'clic_libro', libroId: libro.id, programa: programa || undefined })
+  }
+
+  const columnas = [
+    {
+      title: 'Título', dataIndex: 'titulo', key: 'titulo',
+      sorter: (a: any, b: any) => a.titulo.localeCompare(b.titulo),
+      render: (_: string, libro: any) => (
+        <div>
+          <div style={{ fontWeight: 600, color: '#1A2332' }}>{libro.titulo}</div>
+          <div style={{ fontSize: 12, color: '#4A5568' }}>{libro.autor}</div>
+        </div>
+      ),
+    },
+    {
+      title: 'Año', dataIndex: 'anio', key: 'anio', width: 90,
+      sorter: (a: any, b: any) => (a.anio || 0) - (b.anio || 0),
+    },
+    {
+      title: 'Disponibilidad', dataIndex: 'disponibles', key: 'disponibles', width: 150,
+      sorter: (a: any, b: any) => a.disponibles - b.disponibles,
+      render: (_: number, libro: any) => (
+        <Tag color={libro.disponibles > 0 ? 'green' : 'default'}>
+          {libro.disponibles} / {libro.totalEjemplares}
+        </Tag>
+      ),
+    },
+  ]
+
   return (
     <div className="landing">
       <nav className="landing-nav">
@@ -82,7 +116,7 @@ function Catalogo() {
           {programa ? (nombreCorto[programa] || programa) : 'Explora todos los recursos'}
         </h2>
 
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 32 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
           <Input
             placeholder="Buscar por título, autor o código..."
             prefix={<SearchOutlined style={{ color: '#9CA3AF' }} />}
@@ -103,51 +137,68 @@ function Catalogo() {
           />
         </div>
 
-        {cargando ? (
-          <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <Spin size="large" />
-          </div>
-        ) : libros.length === 0 ? (
-          <Empty description="No se encontraron libros con esos criterios" style={{ padding: '60px 0' }} />
-        ) : (
-          <div className="catalogo-grid">
-            {libros.map(libro => (
-              <div
-                key={libro.id}
-                className="catalogo-card"
-                role="button"
-                tabIndex={0}
-                style={{ cursor: 'pointer' }}
-                onClick={() => registrarEventoPublico({ tipo: 'clic_libro', libroId: libro.id, programa: programa || undefined })}
+        <div className="reporte-card">
+          <Table
+            columns={columnas}
+            dataSource={libros}
+            rowKey="id"
+            loading={cargando}
+            onRow={libro => ({ onClick: () => abrirDetalle(libro), style: { cursor: 'pointer' } })}
+            pagination={{ pageSize: 15, showTotal: t => `${t} libros` }}
+            size="middle"
+          />
+        </div>
+      </section>
+
+      <Modal
+        open={!!libroSeleccionado}
+        onCancel={() => setLibroSeleccionado(null)}
+        footer={null}
+        width={560}
+        destroyOnClose
+      >
+        {libroSeleccionado && (
+          <div style={{ paddingTop: 8 }}>
+            <Tag color="cyan" style={{ marginBottom: 12 }}>
+              {nombreCorto[libroSeleccionado.programa] || libroSeleccionado.programa || libroSeleccionado.categoria}
+            </Tag>
+            <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1A2332', margin: '0 0 4px' }}>
+              {libroSeleccionado.titulo}
+            </h2>
+            <p style={{ color: '#4A5568', margin: '0 0 16px' }}>
+              {libroSeleccionado.autor} · {libroSeleccionado.anio}
+              {libroSeleccionado.editora ? ` · ${libroSeleccionado.editora}` : ''}
+            </p>
+
+            {libroSeleccionado.descripcion && (
+              <p style={{ color: '#334155', lineHeight: 1.6, marginBottom: 20 }}>
+                {libroSeleccionado.descripcion}
+              </p>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 20 }}>
+              <Statistic
+                title="Disponibles"
+                value={libroSeleccionado.disponibles}
+                suffix={`/ ${libroSeleccionado.totalEjemplares}`}
+                valueStyle={{ fontSize: 20, fontWeight: 700 }}
+              />
+            </div>
+
+            <Tooltip title="Próximamente disponible para estudiantes, docentes y externos">
+              <Button
+                type="primary"
+                icon={<ClockCircleOutlined />}
+                disabled
+                block
+                size="large"
               >
-                <div className="catalogo-top">
-                  <span className="catalogo-categoria">
-                    {nombreCorto[libro.programa] || libro.programa || libro.categoria}
-                  </span>
-                  <BookOutlined style={{ color: '#00796B', fontSize: 18 }} />
-                </div>
-                <h3 className="catalogo-titulo">{libro.titulo}</h3>
-                <p className="catalogo-autor">{libro.autor} · {libro.anio}</p>
-                {libro.descripcion && (
-                  <p className="catalogo-desc">
-                    {libro.descripcion.length > 140
-                      ? libro.descripcion.slice(0, 140) + '…'
-                      : libro.descripcion}
-                  </p>
-                )}
-                <div className="catalogo-footer">
-                  <Statistic
-                    title="Disponibles"
-                    value={libro.disponibles}
-                    suffix={`/ ${libro.totalEjemplares}`}
-                    valueStyle={{ fontSize: 18, fontWeight: 700 }}
-                  />
-                </div>
-              </div>
-            ))}
+                Solicitar reserva (próximamente)
+              </Button>
+            </Tooltip>
           </div>
         )}
-      </section>
+      </Modal>
     </div>
   )
 }

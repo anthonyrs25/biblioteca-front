@@ -204,8 +204,16 @@ function Landing() {
               className="catalogo-card catalogo-card-carrera"
               role="button"
               tabIndex={0}
-              onClick={() => navigate(`/catalogo?programa=${encodeURIComponent(carrera.programa)}`)}
-              onKeyDown={e => { if (e.key === 'Enter') navigate(`/catalogo?programa=${encodeURIComponent(carrera.programa)}`) }}
+              onClick={() => {
+                registrarEventoPublico({ tipo: 'clic_carrera', programa: carrera.programa })
+                navigate(`/catalogo?programa=${encodeURIComponent(carrera.programa)}`)
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  registrarEventoPublico({ tipo: 'clic_carrera', programa: carrera.programa })
+                  navigate(`/catalogo?programa=${encodeURIComponent(carrera.programa)}`)
+                }
+              }}
               style={{ cursor: 'pointer' }}
             >
               <BookOutlined style={{ color: '#00796B', fontSize: 26, marginBottom: 12 }} />

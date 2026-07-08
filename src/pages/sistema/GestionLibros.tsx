@@ -12,7 +12,44 @@ const limpiarPrograma = (nombre: string) =>
     .replace(/DISEÑO GRÁFICO CON NIVEL EQUIVALENTE A TECNOLOGÍA SUPERIOR/i, 'DISEÑO GRÁFICO')
     .trim()
 
-const COLUMNAS_REQUERIDAS = ['CODIGO', 'TITULO', 'AUTOR']
+const normalizar = (s: string) =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim()
+
+// Alias posibles por campo — cubre tanto el Excel institucional real
+// (CÓDIGO DE BIBLIOTECA, NOMBRE, AUTOR(ES)) como una plantilla simple (CODIGO, TITULO, AUTOR)
+const ALIAS_CODIGO = ['CODIGO DE BIBLIOTECA', 'CODIGO INTERNO', 'CODIGO']
+const ALIAS_TITULO = ['NOMBRE', 'TITULO']
+const ALIAS_AUTOR = ['AUTOR']
+const ALIAS_ANIO = ['ANO DE PUBLICACION', 'ANO', 'YEAR']
+const ALIAS_CATEGORIA = ['PROGRAMAS', 'AREA DE CONOCIMIENTO', 'CATEGORIA']
+const ALIAS_TOTAL = ['TOTAL', 'EJEMPLARES']
+const ALIAS_DISPONIBLES = ['DISPONIBLES']
+const ALIAS_DESCRIPCION = ['RESUMEN', 'DESCRIPCION']
+
+// Encuentra la fila real de encabezados: el Excel institucional trae una fila
+// de título de sección arriba de los encabezados verdaderos (por eso no basta
+// con asumir que la fila 1 siempre tiene los nombres de columna)
+function encontrarFilaEncabezado(sheet: XLSX.WorkSheet): number {
+  const filas: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][]
+  for (let i = 0; i < Math.min(filas.length, 5); i++) {
+    const fila = (filas[i] || []).map(c => normalizar(String(c ?? '')))
+    const tieneCodigo = ALIAS_CODIGO.some(a => fila.some(c => c.includes(normalizar(a))))
+    const tieneTitulo = ALIAS_TITULO.some(a => fila.some(c => c.includes(normalizar(a))))
+    if (tieneCodigo && tieneTitulo) return i
+  }
+  return 0
+}
+
+const obtenerValor = (row: Record<string, any>, aliases: string[]): string => {
+  const claves = Object.keys(row)
+  for (const alias of aliases) {
+    const clave = claves.find(k => normalizar(k).includes(normalizar(alias)))
+    if (clave && row[clave] !== undefined && row[clave] !== null && String(row[clave]).trim()) {
+      return String(row[clave]).trim()
+    }
+  }
+  return ''
+}
 
 function GestionLibros() {
   const navigate = useNavigate()
@@ -94,7 +131,9 @@ function GestionLibros() {
       const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer)
       const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      const rows: any[] = XLSX.utils.sheet_to_json(sheet)
+
+      const filaEncabezado = encontrarFilaEncabezado(sheet)
+      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { range: filaEncabezado })
 
       if (rows.length === 0) {
         message.error('El archivo está vacío')
@@ -103,34 +142,45 @@ function GestionLibros() {
         return
       }
 
-      // Validar que tenga las columnas requeridas
-      const primeraFila = rows[0]
-      const columnasArchivo = Object.keys(primeraFila).map(k => k.toUpperCase().trim())
-      const faltantes = COLUMNAS_REQUERIDAS.filter(col =>
-        !columnasArchivo.some(c => c.includes(col))
-      )
+      // Validar que tenga las columnas requeridas (por alias, sin importar tildes)
+      const columnasArchivo = Object.keys(rows[0]).map(k => normalizar(k))
+      const tieneAlias = (aliases: string[]) =>
+        aliases.some(alias => columnasArchivo.some(c => c.includes(normalizar(alias))))
+
+      const faltantes: string[] = []
+      if (!tieneAlias(ALIAS_CODIGO)) faltantes.push('Código')
+      if (!tieneAlias(ALIAS_TITULO)) faltantes.push('Título')
+      if (!tieneAlias(ALIAS_AUTOR)) faltantes.push('Autor')
 
       if (faltantes.length > 0) {
-        message.error(`El archivo no tiene el formato correcto. Columnas faltantes: ${faltantes.join(', ')}. Usa la plantilla del sistema.`)
+        message.error(`El archivo no tiene el formato correcto. Columnas faltantes: ${faltantes.join(', ')}.`)
         setImportando(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
         return
       }
 
+      // Filtrar filas basura: encabezados repetidos que el Excel institucional
+      // reinserta cada vez que cambia de sección/categoría
+      const filasValidas = rows.filter(row => {
+        const codigoValor = normalizar(obtenerValor(row, ALIAS_CODIGO))
+        const esEncabezadoRepetido = ALIAS_CODIGO.some(a => codigoValor === normalizar(a))
+        return codigoValor && !esEncabezadoRepetido
+      })
+
       let exitosos = 0
       let fallidos = 0
 
-      for (const row of rows) {
+      for (const row of filasValidas) {
         try {
           const libro = {
-            codigo: String(row['CODIGO'] || row['Código'] || row['codigo'] || '').trim(),
-            titulo: String(row['TITULO'] || row['Título'] || row['titulo'] || '').trim(),
-            autor: String(row['AUTOR'] || row['Autor'] || row['autor'] || '').trim(),
-            anio: parseInt(row['AÑO'] || row['Año'] || row['anio'] || row['YEAR'] || new Date().getFullYear()),
-            categoria: String(row['CATEGORIA'] || row['Categoría'] || row['categoria'] || row['PROGRAMA'] || row['programa'] || '').trim(),
-            totalEjemplares: parseInt(row['TOTAL'] || row['total'] || row['Total'] || row['EJEMPLARES'] || 1),
-            disponibles: parseInt(row['DISPONIBLES'] || row['disponibles'] || row['Disponibles'] || row['TOTAL'] || row['total'] || 1),
-            descripcion: String(row['DESCRIPCION'] || row['Descripción'] || row['descripcion'] || row['TITULO'] || row['titulo'] || '').trim(),
+            codigo: obtenerValor(row, ALIAS_CODIGO),
+            titulo: obtenerValor(row, ALIAS_TITULO),
+            autor: obtenerValor(row, ALIAS_AUTOR),
+            anio: parseInt(obtenerValor(row, ALIAS_ANIO)) || new Date().getFullYear(),
+            categoria: obtenerValor(row, ALIAS_CATEGORIA),
+            totalEjemplares: parseInt(obtenerValor(row, ALIAS_TOTAL)) || 1,
+            disponibles: parseInt(obtenerValor(row, ALIAS_DISPONIBLES) || obtenerValor(row, ALIAS_TOTAL)) || 1,
+            descripcion: obtenerValor(row, ALIAS_DESCRIPCION) || obtenerValor(row, ALIAS_TITULO),
           }
           if (!libro.codigo || !libro.titulo || !libro.autor) { fallidos++; continue }
           await crearLibro(libro)
