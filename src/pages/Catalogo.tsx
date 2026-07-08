@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Input, Select, Spin, Empty, Statistic } from 'antd'
 import { ArrowLeftOutlined, BookOutlined, SearchOutlined } from '@ant-design/icons'
 import Logo from '../components/Logo'
-import { buscarLibros, getProgramas } from '../api/biblioteca'
+import { buscarLibros, getProgramas, registrarEventoPublico } from '../api/biblioteca'
 
 const nombreCorto: Record<string, string> = {
   'TECNOLOGÍA SUPERIOR EN DESARROLLO DE SOFTWARE': 'Desarrollo de Software',
@@ -39,10 +39,19 @@ function Catalogo() {
   }, [])
 
   useEffect(() => {
+    registrarEventoPublico({ tipo: 'visita_pagina', programa: programa || undefined })
+  }, [programa])
+
+  useEffect(() => {
     setCargando(true)
     const t = setTimeout(() => {
       buscarLibros(texto || undefined, programa || undefined)
-        .then(setLibros)
+        .then(data => {
+          setLibros(data)
+          if (texto.trim()) {
+            registrarEventoPublico({ tipo: 'busqueda', texto: texto.trim(), programa: programa || undefined })
+          }
+        })
         .finally(() => setCargando(false))
     }, 300)
     return () => clearTimeout(t)
@@ -103,7 +112,14 @@ function Catalogo() {
         ) : (
           <div className="catalogo-grid">
             {libros.map(libro => (
-              <div key={libro.id} className="catalogo-card">
+              <div
+                key={libro.id}
+                className="catalogo-card"
+                role="button"
+                tabIndex={0}
+                style={{ cursor: 'pointer' }}
+                onClick={() => registrarEventoPublico({ tipo: 'clic_libro', libroId: libro.id, programa: programa || undefined })}
+              >
                 <div className="catalogo-top">
                   <span className="catalogo-categoria">
                     {nombreCorto[libro.programa] || libro.programa || libro.categoria}

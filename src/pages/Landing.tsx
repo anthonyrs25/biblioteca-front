@@ -18,7 +18,7 @@ import {
   EnvironmentOutlined,
 } from '@ant-design/icons'
 import Logo from '../components/Logo'
-import { getLibros, getConteoPorPrograma } from '../api/biblioteca'
+import { getLibros, getConteoPorPrograma, registrarEventoPublico } from '../api/biblioteca'
 
 const nombreCorto: Record<string, string> = {
   'TECNOLOGÍA SUPERIOR EN DESARROLLO DE SOFTWARE': 'Desarrollo de Software',
@@ -44,6 +44,10 @@ function Landing() {
     const handleScroll = () => setMostrarScrollTop(window.scrollY > 400)
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  useEffect(() => {
+    registrarEventoPublico({ tipo: 'visita_pagina' })
   }, [])
 
   useEffect(() => {

@@ -116,4 +116,28 @@ export const getStatsRegistros = (anio: number, mes: number) =>
 export const getRegistrosMes = (anio: number, mes: number) =>
   api.get(`/registros/mes/${anio}/${mes}`).then(r => r.data)
 
+export const getRankingVisitasUsuarios = () =>
+  api.get('/registros/ranking-usuarios').then(r => r.data)
+
+// ───── EVENTOS PÚBLICOS (catálogo sin login) ─────
+
+export const registrarEventoPublico = (data: {
+  tipo: string // "visita_pagina" | "busqueda" | "clic_libro"
+  programa?: string
+  texto?: string
+  libroId?: number
+}) => api.post('/eventos-publicos', data).then(r => r.data).catch(() => null)
+
+export const getTotalVisitasPublicas = () =>
+  api.get('/eventos-publicos/total-visitas').then(r => r.data)
+
+export const getLibrosMasBuscados = () =>
+  api.get('/eventos-publicos/libros-mas-buscados').then(r => r.data)
+
+export const getRankingPrestamosLibros = () =>
+  api.get('/prestamos/ranking-libros').then(r => r.data)
+
+export const getRankingPrestamosUsuarios = () =>
+  api.get('/prestamos/ranking-usuarios').then(r => r.data)
+
 export default api

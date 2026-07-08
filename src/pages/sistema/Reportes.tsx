@@ -6,9 +6,9 @@ import {
   SwapOutlined, CheckCircleOutlined, BookOutlined,
 } from '@ant-design/icons'
 import dayjs, { Dayjs } from 'dayjs'
-import { getStatsRegistros, getLibros, getRegistrosMes, getTodosLosPrestamos, getDocentes } from '../../api/biblioteca'
+import { getStatsRegistros, getLibros, getRegistrosMes, getTodosLosPrestamos, getDocentes, getTotalVisitasPublicas, getLibrosMasBuscados, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios } from '../../api/biblioteca'
 
-type TabKey = 'resumen' | 'visitas' | 'prestamos'
+type TabKey = 'resumen' | 'visitas' | 'prestamos' | 'analitica'
 
 function Reportes() {
   const navigate = useNavigate()
@@ -27,6 +27,12 @@ function Reportes() {
   const [mes, setMes] = useState(dayjs().month() + 1)
   const [docenteFiltro, setDocenteFiltro] = useState<number | undefined>()
   const [soloActivos, setSoloActivos] = useState(false)
+  const [visitasPublicas, setVisitasPublicas] = useState(0)
+  const [librosMasBuscados, setLibrosMasBuscados] = useState<any[]>([])
+  const [rankingVisitas, setRankingVisitas] = useState<any[]>([])
+  const [rankingLibros, setRankingLibros] = useState<any[]>([])
+  const [rankingPrestamosUsuarios, setRankingPrestamosUsuarios] = useState<any[]>([])
+  const [cargandoAnalitica, setCargandoAnalitica] = useState(true)
 
   const mesNombre = dayjs(`${anio}-${String(mes).padStart(2, '0')}-01`)
     .toDate().toLocaleString('es-EC', { month: 'long', year: 'numeric' })
@@ -50,6 +56,23 @@ function Reportes() {
   }
 
   useEffect(() => { cargarDatos() }, [anio, mes])
+
+  useEffect(() => {
+    setCargandoAnalitica(true)
+    Promise.all([
+      getTotalVisitasPublicas(),
+      getLibrosMasBuscados(),
+      getRankingVisitasUsuarios(),
+      getRankingPrestamosLibros(),
+      getRankingPrestamosUsuarios(),
+    ]).then(([visitas, buscados, visitasUsuarios, librosPrestados, prestamosUsuarios]) => {
+      setVisitasPublicas(visitas)
+      setLibrosMasBuscados(buscados)
+      setRankingVisitas(visitasUsuarios)
+      setRankingLibros(librosPrestados)
+      setRankingPrestamosUsuarios(prestamosUsuarios)
+    }).finally(() => setCargandoAnalitica(false))
+  }, [])
 
   const maxCarrera = stats?.porCarrera?.length > 0
     ? Math.max(...stats.porCarrera.map((c: any) => c.visitas))
@@ -139,6 +162,61 @@ function Reportes() {
             )}
           </div>
         ),
+    },
+  ]
+
+  const columnasLibrosBuscados = [
+    {
+      title: 'Libro', dataIndex: 'libro', key: 'libro',
+      render: (l: any) => l
+        ? (
+          <div>
+            <div style={{ fontWeight: 600, color: '#1A2332' }}>{l.titulo}</div>
+            <div style={{ fontSize: 12, color: '#4A5568' }}>{l.autor}</div>
+          </div>
+        )
+        : <span style={{ color: '#94A3B8' }}>Libro eliminado</span>,
+    },
+    {
+      title: 'Clics desde el catálogo público', dataIndex: 'clics', key: 'clics',
+      sorter: (a: any, b: any) => a.clics - b.clics,
+      defaultSortOrder: 'descend' as any,
+    },
+  ]
+
+  const columnasRankingLibros = [
+    {
+      title: 'Libro', dataIndex: 'libro', key: 'libro',
+      render: (l: any) => (
+        <div>
+          <div style={{ fontWeight: 600, color: '#1A2332' }}>{l.titulo}</div>
+          <div style={{ fontSize: 12, color: '#4A5568' }}>{l.autor}</div>
+        </div>
+      ),
+    },
+    { title: 'Código', dataIndex: 'libro', key: 'codigo', render: (l: any) => <Tag>{l.codigo}</Tag> },
+    {
+      title: 'Préstamos totales', dataIndex: 'prestamos', key: 'prestamos',
+      sorter: (a: any, b: any) => a.prestamos - b.prestamos,
+      defaultSortOrder: 'descend' as any,
+    },
+  ]
+
+  const columnasRankingVisitas = [
+    { title: 'Docente', dataIndex: 'usuario', key: 'usuario', render: (u: any) => u.nombre },
+    {
+      title: 'Visitas registradas', dataIndex: 'visitas', key: 'visitas',
+      sorter: (a: any, b: any) => a.visitas - b.visitas,
+      defaultSortOrder: 'descend' as any,
+    },
+  ]
+
+  const columnasRankingPrestamosUsuarios = [
+    { title: 'Docente', dataIndex: 'usuario', key: 'usuario', render: (u: any) => u.nombre },
+    {
+      title: 'Préstamos totales', dataIndex: 'prestamos', key: 'prestamos',
+      sorter: (a: any, b: any) => a.prestamos - b.prestamos,
+      defaultSortOrder: 'descend' as any,
     },
   ]
 
@@ -305,6 +383,85 @@ function Reportes() {
                     size="small"
                   />
                 </div>
+              </>
+            ),
+          },
+          {
+            key: 'analitica',
+            label: 'Analítica',
+            children: (
+              <>
+                <div className="kpi-grid">
+                  <div className="kpi-card">
+                    <TeamOutlined style={{ fontSize: 22, color: '#00796B', marginBottom: 8 }} />
+                    <Statistic title="Visitas al catálogo público" value={visitasPublicas} />
+                  </div>
+                </div>
+
+                <div className="reportes-grid-inferior">
+                  <div className="reporte-card">
+                    <h3 className="reporte-card-titulo">
+                      <BookOutlined style={{ marginRight: 8 }} />
+                      Libros más buscados en el catálogo público
+                    </h3>
+                    <Table
+                      columns={columnasLibrosBuscados}
+                      dataSource={librosMasBuscados}
+                      rowKey={(r: any) => r.libro?.id ?? Math.random()}
+                      loading={cargandoAnalitica}
+                      pagination={{ pageSize: 10 }}
+                      size="small"
+                    />
+                  </div>
+                  <div className="reporte-card">
+                    <h3 className="reporte-card-titulo">
+                      <SwapOutlined style={{ marginRight: 8 }} />
+                      Libros por número de préstamos
+                    </h3>
+                    <Table
+                      columns={columnasRankingLibros}
+                      dataSource={rankingLibros}
+                      rowKey={(r: any) => r.libro.id}
+                      loading={cargandoAnalitica}
+                      pagination={{ pageSize: 10 }}
+                      size="small"
+                    />
+                  </div>
+                </div>
+
+                <div className="reportes-grid-inferior" style={{ marginTop: 20 }}>
+                  <div className="reporte-card">
+                    <h3 className="reporte-card-titulo">
+                      <TeamOutlined style={{ marginRight: 8 }} />
+                      Docentes por número de visitas
+                    </h3>
+                    <Table
+                      columns={columnasRankingVisitas}
+                      dataSource={rankingVisitas}
+                      rowKey={(r: any) => r.usuario.id}
+                      loading={cargandoAnalitica}
+                      pagination={{ pageSize: 10 }}
+                      size="small"
+                    />
+                  </div>
+                  <div className="reporte-card">
+                    <h3 className="reporte-card-titulo">
+                      <TeamOutlined style={{ marginRight: 8 }} />
+                      Docentes por número de préstamos
+                    </h3>
+                    <Table
+                      columns={columnasRankingPrestamosUsuarios}
+                      dataSource={rankingPrestamosUsuarios}
+                      rowKey={(r: any) => r.usuario.id}
+                      loading={cargandoAnalitica}
+                      pagination={{ pageSize: 10 }}
+                      size="small"
+                    />
+                  </div>
+                </div>
+                <p style={{ color: '#94A3B8', fontSize: 12, marginTop: 12 }}>
+                  Haz clic en el encabezado de cualquier columna numérica para ordenar de menor a mayor y ver quién/qué tiene menos actividad.
+                </p>
               </>
             ),
           },
