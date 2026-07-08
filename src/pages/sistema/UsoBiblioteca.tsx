@@ -36,7 +36,9 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
 
   if (!docente) return null
 
-  const carrerasReales = (docente.carreras ?? []).map((dc: any) => dc.carrera).filter(Boolean)
+  const carrerasReales = (docente.carreras ?? [])
+  .filter((dc: any) => dc.carrera)
+  .map((dc: any) => ({ ...dc.carrera, ciclos: dc.ciclos ?? [] }))
   const opcionesCarrera = carrerasReales.map((c: any) => ({ value: c.nombre, label: c.nombre }))
   const carreraActual = carrerasReales.find((c: any) => c.nombre === carreraSeleccionada)
   const opcionesCiclo = carreraActual?.ciclos.map((c: any) => ({ value: c.numero, label: `${c.numero}° Ciclo` })) ?? []

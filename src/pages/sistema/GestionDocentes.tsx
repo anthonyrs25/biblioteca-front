@@ -41,7 +41,7 @@ function GestionDocentes() {
 
   const abrirEditar = (docente: any) => {
     setEditando(docente)
-    const ciclos = docente.carreras?.[0]?.carrera?.ciclos?.map((c: any) => ({
+    const ciclos = docente.carreras?.[0]?.ciclos?.map((c: any) => ({
       numero: c.numero,
       materias: c.materias?.map((m: any) => m.nombre).join(', ') || '',
     })) || []
