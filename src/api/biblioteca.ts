@@ -93,6 +93,12 @@ export const buscarLibros = (texto?: string, programa?: string) =>
 export const getProgramas = () =>
   api.get('/libros/programas').then(r => r.data)
 
+export const importarLoteLibros = (libros: any[]) =>
+  api.post('/libros/importar-lote', { libros }).then(r => r.data)
+
+export const exportarTodosLibros = () =>
+  api.get('/libros/exportar-todos').then(r => r.data)
+
 // ───── PRÉSTAMOS ─────
 
 export const crearPrestamo = (docenteId: number, libroId: number, fechaDevolucionEsperada?: string) =>
