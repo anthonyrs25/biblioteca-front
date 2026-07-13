@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Select, Button, App, Input } from 'antd'
+import { useState, useEffect } from 'react'
+import { Button, App, Input } from 'antd'
 import { ReadOutlined, CheckCircleOutlined, ArrowLeftOutlined } from '@ant-design/icons'
 import { crearRegistro } from '../../api/biblioteca'
 
@@ -23,6 +23,25 @@ const jornadas = [
   { value: 'nocturno', label: '🌙 Nocturno' },
 ]
 
+// Grupo de botones: 1 clic para elegir, en vez de abrir un desplegable y luego elegir
+function ChipGroup({ opciones, valor, onChange }: { opciones: { value: any; label: string }[]; valor: any; onChange: (v: any) => void }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {opciones.map(op => (
+        <Button
+          key={String(op.value)}
+          onClick={() => onChange(op.value)}
+          type={valor === op.value ? 'primary' : 'default'}
+          style={valor === op.value ? { background: '#00796B', borderColor: '#00796B' } : {}}
+          size="large"
+        >
+          {op.label}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
 function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
   const { message } = App.useApp()
   const [actividad, setActividad] = useState<string | undefined>()
@@ -34,16 +53,36 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
   const [confirmado, setConfirmado] = useState(false)
   const [guardando, setGuardando] = useState(false)
 
-  if (!docente) return null
-
-  const carrerasReales = (docente.carreras ?? [])
-  .filter((dc: any) => dc.carrera)
-  .map((dc: any) => ({ ...dc.carrera, ciclos: dc.ciclos ?? [] }))
+  const carrerasReales = (docente?.carreras ?? [])
+    .filter((dc: any) => dc.carrera)
+    .map((dc: any) => ({ ...dc.carrera, ciclos: dc.ciclos ?? [] }))
   const opcionesCarrera = carrerasReales.map((c: any) => ({ value: c.nombre, label: c.nombre }))
   const carreraActual = carrerasReales.find((c: any) => c.nombre === carreraSeleccionada)
   const opcionesCiclo = carreraActual?.ciclos.map((c: any) => ({ value: c.numero, label: `${c.numero}° Ciclo` })) ?? []
   const cicloActual = carreraActual?.ciclos.find((c: any) => c.numero === cicloSeleccionado)
   const opcionesMateria = cicloActual?.materias.map((m: any) => ({ value: m.nombre, label: m.nombre })) ?? []
+
+  // Auto-selección: si solo hay una opción posible, se precarga sola — el
+  // docente no tiene que elegir algo que de todos modos es lo único que hay.
+  useEffect(() => {
+    if (opcionesCarrera.length === 1 && !carreraSeleccionada) {
+      setCarreraSeleccionada(opcionesCarrera[0].value)
+    }
+  }, [docente])
+
+  useEffect(() => {
+    if (opcionesCiclo.length === 1 && carreraSeleccionada) {
+      setCicloSeleccionado(opcionesCiclo[0].value)
+    }
+  }, [carreraSeleccionada])
+
+  useEffect(() => {
+    if (opcionesMateria.length === 1 && cicloSeleccionado) {
+      setMateriaSeleccionada(opcionesMateria[0].value)
+    }
+  }, [cicloSeleccionado])
+
+  if (!docente) return null
 
   const handleCarreraChange = (val: string) => {
     setCarreraSeleccionada(val)
@@ -110,8 +149,7 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
 
       <div className="form-field">
         <label className="field-label">Actividad</label>
-        <Select placeholder="¿Qué vas a hacer hoy?" options={actividades} value={actividad}
-          onChange={setActividad} style={{ width: '100%' }} size="large" />
+        <ChipGroup opciones={actividades} valor={actividad} onChange={setActividad} />
       </div>
 
       <div className="form-field">
@@ -120,34 +158,38 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
           onChange={e => setDetalle(e.target.value)} size="large" maxLength={120} />
       </div>
 
-      <div className="form-field">
-        <label className="field-label">Carrera</label>
-        <Select placeholder="Selecciona la carrera" options={opcionesCarrera}
-          value={carreraSeleccionada} onChange={handleCarreraChange} style={{ width: '100%' }} size="large" />
-      </div>
+      {opcionesCarrera.length > 1 && (
+        <div className="form-field">
+          <label className="field-label">Carrera</label>
+          <ChipGroup opciones={opcionesCarrera} valor={carreraSeleccionada} onChange={handleCarreraChange} />
+        </div>
+      )}
 
-      {carreraSeleccionada && (
+      {carreraSeleccionada && opcionesCiclo.length > 1 && (
         <div className="form-field">
           <label className="field-label">Ciclo</label>
-          <Select placeholder="Selecciona el ciclo" options={opcionesCiclo}
-            value={cicloSeleccionado} onChange={handleCicloChange} style={{ width: '100%' }} size="large" />
+          <ChipGroup opciones={opcionesCiclo} valor={cicloSeleccionado} onChange={handleCicloChange} />
         </div>
       )}
 
       {cicloSeleccionado && (
         <div className="form-field">
           <label className="field-label">Jornada</label>
-          <Select placeholder="Matutino, vespertino o nocturno" options={jornadas}
-            value={jornadaSeleccionada} onChange={val => { setJornadaSeleccionada(val); setMateriaSeleccionada(undefined) }}
-            style={{ width: '100%' }} size="large" />
+          <ChipGroup opciones={jornadas} valor={jornadaSeleccionada}
+            onChange={val => { setJornadaSeleccionada(val); setMateriaSeleccionada(opcionesMateria.length === 1 ? opcionesMateria[0].value : undefined) }} />
         </div>
       )}
 
-      {jornadaSeleccionada && (
+      {jornadaSeleccionada && opcionesMateria.length > 1 && (
         <div className="form-field">
           <label className="field-label">Materia</label>
-          <Select placeholder="Selecciona la materia" options={opcionesMateria}
-            value={materiaSeleccionada} onChange={setMateriaSeleccionada} style={{ width: '100%' }} size="large" />
+          <ChipGroup opciones={opcionesMateria} valor={materiaSeleccionada} onChange={setMateriaSeleccionada} />
+        </div>
+      )}
+
+      {jornadaSeleccionada && opcionesMateria.length === 1 && (
+        <div style={{ fontSize: 12, color: '#94A3B8', marginTop: -12, marginBottom: 18 }}>
+          Materia: <strong style={{ color: '#00796B' }}>{opcionesMateria[0].label}</strong> (única para este ciclo — precargada)
         </div>
       )}
 

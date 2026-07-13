@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Table, Button, Modal, Form, Input, InputNumber, App, Popconfirm, Tag, Select } from 'antd'
-import { ArrowLeftOutlined, PlusOutlined, EditOutlined, DeleteOutlined, BookOutlined, UploadOutlined, SearchOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, PlusOutlined, EditOutlined, DeleteOutlined, BookOutlined, UploadOutlined, SearchOutlined, FileExcelOutlined, DownloadOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
-import { getLibros, crearLibro, actualizarLibro, eliminarLibro, buscarLibros, getProgramas } from '../../api/biblioteca'
+import { getLibros, crearLibro, actualizarLibro, eliminarLibro, buscarLibros, getProgramas, importarLoteLibros, exportarTodosLibros } from '../../api/biblioteca'
 
 const limpiarPrograma = (nombre: string) =>
   nombre
@@ -122,6 +122,43 @@ function GestionLibros() {
     }
   }
 
+  // Columnas de la plantilla — simplificadas, un alias por campo (la primera
+  // opción de cada lista ALIAS_*), para que la plantilla y la exportación
+  // sean directamente reimportables sin fricción
+  const ENCABEZADOS_PLANTILLA = ['CÓDIGO DE BIBLIOTECA', 'NOMBRE', 'AUTOR(ES)', 'AÑO DE PUBLICACIÓN', 'PROGRAMAS', 'TOTAL', 'DISPONIBLES', 'RESUMEN']
+
+  const descargarPlantilla = () => {
+    const hoja = XLSX.utils.aoa_to_sheet([ENCABEZADOS_PLANTILLA])
+    const libro = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(libro, hoja, 'Plantilla')
+    XLSX.writeFile(libro, 'plantilla-biblioteca-daniel-perazzo.xlsx')
+  }
+
+  const exportarTodo = async () => {
+    try {
+      message.loading({ content: 'Generando exportación...', key: 'export' })
+      const todos = await exportarTodosLibros()
+      const filas = todos.map((l: any) => ({
+        'CÓDIGO DE BIBLIOTECA': l.codigo,
+        'NOMBRE': l.titulo,
+        'AUTOR(ES)': l.autor,
+        'AÑO DE PUBLICACIÓN': l.anio,
+        'PROGRAMAS': l.categoria,
+        'TOTAL': l.totalEjemplares,
+        'DISPONIBLES': l.disponibles,
+        'RESUMEN': l.descripcion,
+      }))
+      const hoja = XLSX.utils.json_to_sheet(filas, { header: ENCABEZADOS_PLANTILLA })
+      const libro = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(libro, hoja, 'Catálogo completo')
+      const fecha = new Date().toISOString().slice(0, 10)
+      XLSX.writeFile(libro, `catalogo-biblioteca-${fecha}.xlsx`)
+      message.success({ content: `Exportados ${todos.length} libros`, key: 'export' })
+    } catch {
+      message.error({ content: 'No se pudo generar la exportación', key: 'export' })
+    }
+  }
+
   const handleImportarExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -167,37 +204,40 @@ function GestionLibros() {
         return codigoValor && !esEncabezadoRepetido
       })
 
-      let exitosos = 0
-      let fallidos = 0
+      const librosParaCrear = filasValidas
+        .map(row => ({
+          codigo: obtenerValor(row, ALIAS_CODIGO),
+          titulo: obtenerValor(row, ALIAS_TITULO),
+          autor: obtenerValor(row, ALIAS_AUTOR),
+          anio: parseInt(obtenerValor(row, ALIAS_ANIO)) || new Date().getFullYear(),
+          categoria: obtenerValor(row, ALIAS_CATEGORIA),
+          totalEjemplares: parseInt(obtenerValor(row, ALIAS_TOTAL)) || 1,
+          disponibles: parseInt(obtenerValor(row, ALIAS_DISPONIBLES) || obtenerValor(row, ALIAS_TOTAL)) || 1,
+          descripcion: obtenerValor(row, ALIAS_DESCRIPCION) || obtenerValor(row, ALIAS_TITULO),
+        }))
+        .filter(l => l.codigo && l.titulo && l.autor)
 
-      for (const row of filasValidas) {
-        try {
-          const libro = {
-            codigo: obtenerValor(row, ALIAS_CODIGO),
-            titulo: obtenerValor(row, ALIAS_TITULO),
-            autor: obtenerValor(row, ALIAS_AUTOR),
-            anio: parseInt(obtenerValor(row, ALIAS_ANIO)) || new Date().getFullYear(),
-            categoria: obtenerValor(row, ALIAS_CATEGORIA),
-            totalEjemplares: parseInt(obtenerValor(row, ALIAS_TOTAL)) || 1,
-            disponibles: parseInt(obtenerValor(row, ALIAS_DISPONIBLES) || obtenerValor(row, ALIAS_TOTAL)) || 1,
-            descripcion: obtenerValor(row, ALIAS_DESCRIPCION) || obtenerValor(row, ALIAS_TITULO),
-          }
-          if (!libro.codigo || !libro.titulo || !libro.autor) { fallidos++; continue }
-          await crearLibro(libro)
-          exitosos++
-        } catch {
-          fallidos++
-        }
+      if (librosParaCrear.length === 0) {
+        message.warning('No se encontró ninguna fila válida con código, título y autor.')
+        setImportando(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        return
       }
 
-      if (exitosos > 0) {
-        message.success(`Importación completada: ${exitosos} libro${exitosos > 1 ? 's' : ''} cargado${exitosos > 1 ? 's' : ''}${fallidos > 0 ? `, ${fallidos} omitido${fallidos > 1 ? 's' : ''} (ya existían o datos incompletos)` : ''}`)
+      // Un solo request para todo el lote, en vez de una petición por libro
+      const resultado = await importarLoteLibros(librosParaCrear)
+
+      if (resultado.creados > 0) {
+        message.success(
+          `Importación completada: ${resultado.creados} libro${resultado.creados > 1 ? 's' : ''} nuevo${resultado.creados > 1 ? 's' : ''}` +
+          (resultado.duplicados > 0 ? `, ${resultado.duplicados} ya existían y se omitieron` : '')
+        )
         cargarLibros()
       } else {
-        message.warning(`No se cargó ningún libro. ${fallidos} filas omitidas — puede que ya existan o tengan datos incompletos.`)
+        message.warning(`No se agregó ningún libro nuevo — los ${resultado.duplicados} códigos del archivo ya existen en el catálogo.`)
       }
     } catch {
-      message.error('Error al leer el archivo. Asegúrate de que sea un Excel válido (.xlsx o .xls).')
+      message.error('Error al leer o importar el archivo. Asegúrate de que sea un Excel válido (.xlsx o .xls).')
     } finally {
       setImportando(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -250,6 +290,12 @@ function GestionLibros() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportarExcel} />
+          <Button icon={<FileExcelOutlined />} onClick={descargarPlantilla}>
+            Descargar plantilla
+          </Button>
+          <Button icon={<DownloadOutlined />} onClick={exportarTodo}>
+            Exportar todo
+          </Button>
           <Button icon={<UploadOutlined />} onClick={() => fileInputRef.current?.click()} loading={importando}>
             Importar Excel
           </Button>

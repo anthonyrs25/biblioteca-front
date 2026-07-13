@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Statistic, Progress, Tabs, Table, Tag, Select, DatePicker } from 'antd'
 import {
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Legend,
+} from 'recharts'
+import {
   ArrowLeftOutlined, BarChartOutlined, TeamOutlined,
   SwapOutlined, CheckCircleOutlined, BookOutlined,
 } from '@ant-design/icons'
 import dayjs, { Dayjs } from 'dayjs'
-import { getStatsRegistros, getLibros, getRegistrosMes, getTodosLosPrestamos, getDocentes, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios } from '../../api/biblioteca'
+import { getStatsPeriodo, getComparativaAnual, getLibros, getRegistrosMes, getTodosLosPrestamos, getDocentes, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios } from '../../api/biblioteca'
 
 type TabKey = 'resumen' | 'visitas' | 'prestamos' | 'analitica'
 
@@ -22,6 +25,8 @@ const nombreCorto: Record<string, string> = {
   'ELECTRICIDAD': 'Electricidad',
   'TECNOLOGÍA SUPERIOR EN ADMINISTRACIÓN DEL TALENTO HUMANO': 'Talento Humano',
 }
+
+const COLORES_GRAFICO = ['#00695C', '#00897B', '#26A69A', '#4DB6AC', '#80CBC4', '#B2DFDB', '#004D40', '#00796B']
 
 function Reportes() {
   const navigate = useNavigate()
@@ -48,6 +53,8 @@ function Reportes() {
   const [rankingCarreras, setRankingCarreras] = useState<any[]>([])
   const [cargandoAnalitica, setCargandoAnalitica] = useState(true)
   const [periodoAnalitica, setPeriodoAnalitica] = useState<string>('todo')
+  const [periodoResumen, setPeriodoResumen] = useState<string>('mes')
+  const [comparativaAnual, setComparativaAnual] = useState<any[]>([])
 
   const mesNombre = dayjs(`${anio}-${String(mes).padStart(2, '0')}-01`)
     .toDate().toLocaleString('es-EC', { month: 'long', year: 'numeric' })
@@ -55,13 +62,11 @@ function Reportes() {
   const cargarDatos = () => {
     setLoading(true)
     Promise.all([
-      getStatsRegistros(anio, mes),
       getLibros(),
       getRegistrosMes(anio, mes),
       getTodosLosPrestamos(),
       getDocentes(),
-    ]).then(([s, libros, regs, pres, docs]) => {
-      setStats(s)
+    ]).then(([libros, regs, pres, docs]) => {
       setTotalLibros(libros.reduce((a: number, b: any) => a + b.totalEjemplares, 0))
       setDisponibles(libros.reduce((a: number, b: any) => a + b.disponibles, 0))
       setRegistros(regs)
@@ -71,6 +76,14 @@ function Reportes() {
   }
 
   useEffect(() => { cargarDatos() }, [anio, mes])
+
+  useEffect(() => {
+    getStatsPeriodo(periodoResumen).then(setStats)
+  }, [periodoResumen])
+
+  useEffect(() => {
+    getComparativaAnual().then(setComparativaAnual)
+  }, [])
 
   useEffect(() => {
     setCargandoAnalitica(true)
@@ -315,7 +328,21 @@ function Reportes() {
             label: 'Resumen del mes',
             children: (
               <>
-                {filtros}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                  <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Período:</span>
+                  <Select
+                    value={periodoResumen}
+                    onChange={setPeriodoResumen}
+                    style={{ width: 160 }}
+                    options={[
+                      { value: 'dia', label: 'Último día' },
+                      { value: 'semana', label: 'Última semana' },
+                      { value: 'mes', label: 'Último mes' },
+                      { value: 'anio', label: 'Último año' },
+                      { value: 'todo', label: 'Todo el historial' },
+                    ]}
+                  />
+                </div>
                 <div className="kpi-grid">
                   <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('visitas')}>
                     <TeamOutlined style={{ fontSize: 22, color: '#00796B', marginBottom: 8 }} />
@@ -368,10 +395,62 @@ function Reportes() {
                         ))}
                       </div>
                     ) : (
-                      <p style={{ color: '#94A3B8', marginTop: 16 }}>Sin registros este mes.</p>
+                      <p style={{ color: '#94A3B8', marginTop: 16 }}>Sin registros en este período.</p>
                     )}
                   </div>
                 </div>
+
+                {stats?.porCarrera?.length > 0 && (
+                  <div className="reportes-grid-inferior" style={{ marginTop: 20 }}>
+                    <div className="reporte-card">
+                      <h3 className="reporte-card-titulo">Distribución de visitas por carrera</h3>
+                      <ResponsiveContainer width="100%" height={280}>
+                        <PieChart>
+                          <Pie
+                            data={stats.porCarrera}
+                            dataKey="visitas"
+                            nameKey="carrera"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={90}
+                            label={(d: any) => `${d.visitas}`}
+                          >
+                            {stats.porCarrera.map((_: any, i: number) => (
+                              <Cell key={i} fill={COLORES_GRAFICO[i % COLORES_GRAFICO.length]} />
+                            ))}
+                          </Pie>
+                          <RTooltip />
+                          <Legend layout="vertical" align="right" verticalAlign="middle" />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                {comparativaAnual.length > 0 && (
+                  <div className="reportes-grid-inferior" style={{ marginTop: 20 }}>
+                    <div className="reporte-card" style={{ gridColumn: '1 / -1' }}>
+                      <h3 className="reporte-card-titulo">Comparativa entre años</h3>
+                      {comparativaAnual.length === 1 && (
+                        <p style={{ color: '#94A3B8', fontSize: 13, marginBottom: 8 }}>
+                          Todavía hay datos de un solo año — este gráfico se vuelve más útil a medida que se acumula historial de años siguientes.
+                        </p>
+                      )}
+                      <ResponsiveContainer width="100%" height={260}>
+                        <BarChart data={comparativaAnual.map((a: any) => ({ ...a, anio: String(a.anio) }))}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="anio" />
+                          <YAxis allowDecimals={false} />
+                          <RTooltip />
+                          <Legend />
+                          <Bar dataKey="usos" name="Uso de sala" fill="#00695C" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="prestamos" name="Préstamos" fill="#00897B" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="devoluciones" name="Devoluciones" fill="#80CBC4" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
               </>
             ),
           },
@@ -449,6 +528,17 @@ function Reportes() {
                       <TeamOutlined style={{ marginRight: 8 }} />
                       Carreras con más interés (clics en el landing)
                     </h3>
+                    {rankingCarreras.length > 0 && (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={rankingCarreras.slice(0, 5).map((r: any) => ({ nombre: nombreCorto[r.programa] || r.programa, clics: r.clics }))}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="nombre" tick={{ fontSize: 11 }} interval={0} angle={-15} textAnchor="end" height={50} />
+                          <YAxis allowDecimals={false} />
+                          <RTooltip />
+                          <Bar dataKey="clics" fill="#00796B" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
                     <Table
                       columns={columnasRankingCarreras}
                       dataSource={rankingCarreras}
@@ -463,6 +553,17 @@ function Reportes() {
                       <BookOutlined style={{ marginRight: 8 }} />
                       Libros más buscados en el catálogo público
                     </h3>
+                    {librosMasBuscados.length > 0 && (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={librosMasBuscados.slice(0, 5).map((r: any) => ({ nombre: r.libro ? (r.libro.titulo.length > 18 ? r.libro.titulo.slice(0, 18) + '…' : r.libro.titulo) : 'Eliminado', clics: r.clics }))}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="nombre" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={50} />
+                          <YAxis allowDecimals={false} />
+                          <RTooltip />
+                          <Bar dataKey="clics" fill="#004D40" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
                     <Table
                       columns={columnasLibrosBuscados}
                       dataSource={librosMasBuscados}
@@ -480,6 +581,17 @@ function Reportes() {
                       <SwapOutlined style={{ marginRight: 8 }} />
                       Libros por número de préstamos
                     </h3>
+                    {rankingLibros.length > 0 && (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={rankingLibros.slice(0, 5).map((r: any) => ({ nombre: r.libro.titulo.length > 18 ? r.libro.titulo.slice(0, 18) + '…' : r.libro.titulo, prestamos: r.prestamos }))}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="nombre" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={50} />
+                          <YAxis allowDecimals={false} />
+                          <RTooltip />
+                          <Bar dataKey="prestamos" fill="#00897B" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
                     <Table
                       columns={columnasRankingLibros}
                       dataSource={rankingLibros}
@@ -494,6 +606,17 @@ function Reportes() {
                       <TeamOutlined style={{ marginRight: 8 }} />
                       Docentes por número de visitas
                     </h3>
+                    {rankingVisitas.length > 0 && (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={[...rankingVisitas].sort((a: any, b: any) => b.visitas - a.visitas).slice(0, 5).map((r: any) => ({ nombre: r.usuario.nombre, visitas: r.visitas }))}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="nombre" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={50} />
+                          <YAxis allowDecimals={false} />
+                          <RTooltip />
+                          <Bar dataKey="visitas" fill="#26A69A" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
                     <Table
                       columns={columnasRankingVisitas}
                       dataSource={rankingVisitas}
@@ -511,6 +634,17 @@ function Reportes() {
                       <TeamOutlined style={{ marginRight: 8 }} />
                       Docentes por número de préstamos
                     </h3>
+                    {rankingPrestamosUsuarios.length > 0 && (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={[...rankingPrestamosUsuarios].sort((a: any, b: any) => b.prestamos - a.prestamos).slice(0, 5).map((r: any) => ({ nombre: r.usuario.nombre, prestamos: r.prestamos }))}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="nombre" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={50} />
+                          <YAxis allowDecimals={false} />
+                          <RTooltip />
+                          <Bar dataKey="prestamos" fill="#4DB6AC" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
                     <Table
                       columns={columnasRankingPrestamosUsuarios}
                       dataSource={rankingPrestamosUsuarios}

@@ -38,8 +38,19 @@ export const crearDocente = (data: {
   carreras?: { nombre: string; ciclos: { numero: number; materias: string[] }[] }[]
 }) => api.post('/docentes', data).then(r => r.data)
 
-export const actualizarCiclosDocente = (id: number, ciclos: { numero: number; materias: string[] }[]) =>
-  api.patch(`/docentes/${id}/ciclos`, { ciclos }).then(r => r.data)
+export const actualizarCiclosDocente = (id: number, carrera: string, ciclos: { numero: number; materias: string[] }[]) =>
+  api.patch(`/docentes/${id}/ciclos`, { carrera, ciclos }).then(r => r.data)
+
+export const agregarCarreraDocente = (id: number, carrera: string) =>
+  api.post(`/docentes/${id}/carreras`, { carrera }).then(r => r.data)
+
+export const quitarCarreraDocente = (id: number, carrera: string) =>
+  api.delete(`/docentes/${id}/carreras/${encodeURIComponent(carrera)}`).then(r => r.data)
+
+// ───── VINCULACIÓN DE LLAVEROS RFID (sin tocar el firmware del ESP32) ─────
+
+export const getUltimoEscaneoDesde = (desdeISO: string) =>
+  api.get('/rfid/ultimo-escaneo', { params: { desde: desdeISO } }).then(r => r.data)
 
 // ───── LIBROS ─────
 
@@ -112,6 +123,11 @@ export const crearRegistro = (data: {
 
 export const getStatsRegistros = (anio: number, mes: number) =>
   api.get(`/registros/stats/${anio}/${mes}`).then(r => r.data)
+export const getStatsPeriodo = (periodo: string) =>
+  api.get('/registros/stats-periodo', { params: { periodo } }).then(r => r.data)
+
+export const getComparativaAnual = () =>
+  api.get('/registros/comparativa-anual').then(r => r.data)
 
 export const getRegistrosMes = (anio: number, mes: number) =>
   api.get(`/registros/mes/${anio}/${mes}`).then(r => r.data)

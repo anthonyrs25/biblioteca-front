@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Table, Button, Modal, Form, Input, App, Tag, Divider } from 'antd'
-import { ArrowLeftOutlined, EditOutlined, TeamOutlined, CreditCardOutlined, PlusOutlined } from '@ant-design/icons'
-import { getDocentes, actualizarDocente, crearDocente, actualizarCiclosDocente } from '../../api/biblioteca'
+import { Table, Button, Modal, Form, Input, Select, App, Tag, Divider, Popconfirm } from 'antd'
+import { ArrowLeftOutlined, EditOutlined, TeamOutlined, CreditCardOutlined, PlusOutlined, WifiOutlined } from '@ant-design/icons'
+import {
+  getDocentes, actualizarDocente, crearDocente, actualizarCiclosDocente,
+  agregarCarreraDocente, quitarCarreraDocente, getUltimoEscaneoDesde, getDocenteByRfid,
+} from '../../api/biblioteca'
 
 const CARRERAS_DISPONIBLES = [
   'Desarrollo de Software',
@@ -17,6 +20,11 @@ const CARRERAS_DISPONIBLES = [
   'Talento Humano',
 ]
 
+const OPCIONES_CICLO = [1, 2, 3, 4].map(n => ({ value: n, label: `${n}° Ciclo` }))
+
+type CicloEditando = { numero: number; materias: string }
+type CarreraEditando = { nombre: string; ciclos: CicloEditando[] }
+
 function GestionDocentes() {
   const navigate = useNavigate()
   const { message } = App.useApp()
@@ -25,9 +33,13 @@ function GestionDocentes() {
   const [modalEditar, setModalEditar] = useState(false)
   const [modalCrear, setModalCrear] = useState(false)
   const [editando, setEditando] = useState<any | null>(null)
-  const [ciclosEditando, setCiclosEditando] = useState<{ numero: number; materias: string }[]>([])
+  const [carrerasEditando, setCarrerasEditando] = useState<CarreraEditando[]>([])
+  const [carreraNuevaSel, setCarreraNuevaSel] = useState<string | undefined>()
   const [formEditar] = Form.useForm()
   const [formCrear] = Form.useForm()
+
+  const [vinculando, setVinculando] = useState(false)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const cargarDocentes = () => {
     setCargando(true)
@@ -38,20 +50,55 @@ function GestionDocentes() {
   }
 
   useEffect(() => { cargarDocentes() }, [])
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
+
+  const construirCarrerasEditando = (docente: any): CarreraEditando[] =>
+    (docente.carreras ?? [])
+      .filter((dc: any) => dc.carrera)
+      .map((dc: any) => ({
+        nombre: dc.carrera.nombre,
+        ciclos: (dc.ciclos ?? []).map((c: any) => ({
+          numero: c.numero,
+          materias: (c.materias ?? []).map((m: any) => m.nombre).join(', '),
+        })),
+      }))
 
   const abrirEditar = (docente: any) => {
     setEditando(docente)
-    const ciclos = docente.carreras?.[0]?.ciclos?.map((c: any) => ({
-      numero: c.numero,
-      materias: c.materias?.map((m: any) => m.nombre).join(', ') || '',
-    })) || []
-    setCiclosEditando(ciclos.length > 0 ? ciclos : [{ numero: 2, materias: '' }])
+    setCarrerasEditando(construirCarrerasEditando(docente))
     formEditar.setFieldsValue({
       rfid: docente.rfid,
       nombre: docente.nombre,
       iniciales: docente.iniciales,
     })
     setModalEditar(true)
+  }
+
+  // ───── Vincular llavero nuevo — 100% software, sin tocar el ESP32 ─────
+  const detenerVinculacion = () => {
+    setVinculando(false)
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+  }
+
+  const iniciarVinculacion = () => {
+    setVinculando(true)
+    const desde = new Date().toISOString()
+    pollRef.current = setInterval(async () => {
+      try {
+        const scan = await getUltimoEscaneoDesde(desde)
+        if (!scan) return
+        detenerVinculacion()
+        const yaAsignado = await getDocenteByRfid(scan.uid).catch(() => null)
+        if (yaAsignado && yaAsignado.id !== editando?.id) {
+          message.warning(`Ese llavero ya está vinculado a ${yaAsignado.nombre}. Usa uno distinto.`)
+          return
+        }
+        formEditar.setFieldValue('rfid', scan.uid)
+        message.success('Llavero detectado y cargado en el formulario')
+      } catch {
+        // sin escaneo todavía, seguir esperando
+      }
+    }, 1500)
   }
 
   const handleGuardarEdicion = async () => {
@@ -62,18 +109,42 @@ function GestionDocentes() {
         nombre: valores.nombre,
         iniciales: valores.iniciales,
       })
-      if (ciclosEditando.length > 0) {
-        await actualizarCiclosDocente(editando.id, ciclosEditando.map(c => ({
+      for (const carrera of carrerasEditando) {
+        await actualizarCiclosDocente(editando.id, carrera.nombre, carrera.ciclos.map(c => ({
           numero: c.numero,
           materias: c.materias.split(',').map((m: string) => m.trim()).filter(Boolean),
         })))
       }
       message.success('Docente actualizado')
+      detenerVinculacion()
       setModalEditar(false)
       cargarDocentes()
     } catch (err: any) {
       if (err?.errorFields) return
       message.error('Error al guardar — verifica que el RFID no esté en uso por otro docente')
+    }
+  }
+
+  const handleAgregarCarrera = async () => {
+    if (!carreraNuevaSel || !editando) return
+    try {
+      const res = await agregarCarreraDocente(editando.id, carreraNuevaSel)
+      if (res.ok === false) { message.warning(res.mensaje); return }
+      setCarrerasEditando([...carrerasEditando, { nombre: carreraNuevaSel, ciclos: [{ numero: 2, materias: '' }] }])
+      setCarreraNuevaSel(undefined)
+    } catch {
+      message.error('Error al agregar la carrera')
+    }
+  }
+
+  const handleQuitarCarrera = async (nombre: string) => {
+    if (!editando) return
+    try {
+      await quitarCarreraDocente(editando.id, nombre)
+      setCarrerasEditando(carrerasEditando.filter(c => c.nombre !== nombre))
+      message.success('Carrera removida del docente')
+    } catch {
+      message.error('Error al quitar la carrera')
     }
   }
 
@@ -133,6 +204,10 @@ function GestionDocentes() {
     },
   ]
 
+  const carrerasNoAsignadas = CARRERAS_DISPONIBLES.filter(
+    c => !carrerasEditando.some(ce => ce.nombre === c)
+  )
+
   return (
     <div className="reportes-page">
       <div className="reportes-header">
@@ -171,10 +246,11 @@ function GestionDocentes() {
         title="Editar docente"
         open={modalEditar}
         onOk={handleGuardarEdicion}
-        onCancel={() => setModalEditar(false)}
+        onCancel={() => { detenerVinculacion(); setModalEditar(false) }}
         okText="Guardar cambios"
         cancelText="Cancelar"
-        width={560}
+        width={600}
+        destroyOnClose
       >
         <Form form={formEditar} layout="vertical" style={{ marginTop: 20 }}>
           <Form.Item name="nombre" label="Nombre completo" rules={[{ required: true }]}>
@@ -186,54 +262,106 @@ function GestionDocentes() {
           <Form.Item
             name="rfid"
             label="UID del llavero RFID"
-            extra="Acerca el llavero al lector ESP32 y copia el UID del monitor serial."
+            extra="Puedes escribirlo a mano, o usar el botón de la derecha y acercar el llavero al lector."
           >
-            <Input placeholder="Ej: 6AE13E3E" />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Input placeholder="Ej: 6AE13E3E" disabled={vinculando} />
+              <Button
+                icon={<WifiOutlined />}
+                onClick={vinculando ? detenerVinculacion : iniciarVinculacion}
+                danger={vinculando}
+              >
+                {vinculando ? 'Cancelar' : 'Vincular llavero'}
+              </Button>
+            </div>
           </Form.Item>
+          {vinculando && (
+            <div style={{ fontSize: 13, color: '#00796B', marginTop: -8, marginBottom: 16 }}>
+              <WifiOutlined style={{ marginRight: 6 }} />
+              Esperando... acerca el llavero nuevo al lector RFID de la biblioteca.
+            </div>
+          )}
         </Form>
 
         {editando && (
           <div style={{ marginTop: 8 }}>
             <Divider>Carreras y materias</Divider>
-            <div style={{ fontSize: 13, color: '#4A5568', marginBottom: 12 }}>
-              Carrera: <strong>{editando.carreras?.[0]?.carrera?.nombre || 'Sin carrera'}</strong>
-            </div>
-            {ciclosEditando.map((ciclo, i) => (
-              <div key={i} style={{ background: '#F5F7FA', borderRadius: 8, padding: '12px 16px', marginBottom: 10 }}>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#1A2332', whiteSpace: 'nowrap' }}>
-                    Ciclo {ciclo.numero}
-                  </span>
-                  <Input
-                    value={ciclo.materias}
-                    placeholder="Materias separadas por coma"
-                    onChange={e => {
-                      const nuevos = [...ciclosEditando]
-                      nuevos[i].materias = e.target.value
-                      setCiclosEditando(nuevos)
-                    }}
-                  />
-                  <Button
-                    danger size="small"
-                    onClick={() => setCiclosEditando(ciclosEditando.filter((_, j) => j !== i))}
-                  >✕</Button>
+
+            {carrerasEditando.map(carrera => (
+              <div key={carrera.nombre} style={{ marginBottom: 16, border: '1px solid #E2E8F0', borderRadius: 10, padding: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <strong style={{ color: '#1A2332' }}>{carrera.nombre}</strong>
+                  <Popconfirm
+                    title="¿Quitar esta carrera del docente?"
+                    description="Se eliminarán sus ciclos y materias asociados."
+                    onConfirm={() => handleQuitarCarrera(carrera.nombre)}
+                    okText="Sí, quitar" cancelText="Cancelar"
+                  >
+                    <Button size="small" danger>Quitar carrera</Button>
+                  </Popconfirm>
                 </div>
+
+                {carrera.ciclos.map((ciclo, i) => (
+                  <div key={i} style={{ background: '#F5F7FA', borderRadius: 8, padding: '10px 14px', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <Select
+                        value={ciclo.numero}
+                        options={OPCIONES_CICLO}
+                        style={{ width: 110 }}
+                        onChange={val => {
+                          setCarrerasEditando(carrerasEditando.map(c => c.nombre !== carrera.nombre ? c : {
+                            ...c, ciclos: c.ciclos.map((cc, j) => j === i ? { ...cc, numero: val } : cc),
+                          }))
+                        }}
+                      />
+                      <Input
+                        value={ciclo.materias}
+                        placeholder="Materias separadas por coma"
+                        onChange={e => {
+                          const valor = e.target.value
+                          setCarrerasEditando(carrerasEditando.map(c => c.nombre !== carrera.nombre ? c : {
+                            ...c, ciclos: c.ciclos.map((cc, j) => j === i ? { ...cc, materias: valor } : cc),
+                          }))
+                        }}
+                      />
+                      <Button
+                        danger size="small"
+                        onClick={() => setCarrerasEditando(carrerasEditando.map(c => c.nombre !== carrera.nombre ? c : {
+                          ...c, ciclos: c.ciclos.filter((_, j) => j !== i),
+                        }))}
+                      >✕</Button>
+                    </div>
+                  </div>
+                ))}
+
+                <Button
+                  size="small"
+                  icon={<PlusOutlined />}
+                  onClick={() => setCarrerasEditando(carrerasEditando.map(c => c.nombre !== carrera.nombre ? c : {
+                    ...c, ciclos: [...c.ciclos, { numero: 1, materias: '' }],
+                  }))}
+                >
+                  Agregar ciclo
+                </Button>
               </div>
             ))}
-            <Button
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                const maxCiclo = ciclosEditando.length > 0
-                  ? Math.max(...ciclosEditando.map(c => c.numero))
-                  : 1
-                setCiclosEditando([...ciclosEditando, { numero: maxCiclo + 1, materias: '' }])
-              }}
-            >
-              Agregar ciclo
-            </Button>
+
+            {carrerasNoAsignadas.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <Select
+                  placeholder="Agregar otra carrera..."
+                  options={carrerasNoAsignadas.map(c => ({ value: c, label: c }))}
+                  value={carreraNuevaSel}
+                  onChange={setCarreraNuevaSel}
+                  style={{ flex: 1 }}
+                />
+                <Button icon={<PlusOutlined />} onClick={handleAgregarCarrera} disabled={!carreraNuevaSel}>
+                  Agregar
+                </Button>
+              </div>
+            )}
             <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 8 }}>
-              Escribe las materias separadas por coma. Los cambios se aplican al guardar.
+              Escribe las materias separadas por coma. Los cambios de materias se aplican al guardar; agregar/quitar carrera se aplica al instante.
             </div>
           </div>
         )}
@@ -270,7 +398,7 @@ function GestionDocentes() {
             </select>
           </Form.Item>
           <Form.Item name="ciclo" label="Número de ciclo">
-            <Input placeholder="Ej: 2" type="number" min={1} max={8} />
+            <Select placeholder="Selecciona el ciclo" options={OPCIONES_CICLO} />
           </Form.Item>
           <Form.Item
             name="materias"
