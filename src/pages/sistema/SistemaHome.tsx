@@ -55,6 +55,7 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
   const [carreraEstudiante, setCarreraEstudiante] = useState<string | undefined>()
   const [cicloEstudiante, setCicloEstudiante] = useState<number | undefined>()
   const [jornadaEstudiante, setJornadaEstudiante] = useState<string | undefined>()
+  const [materiasEstudiante, setMateriasEstudiante] = useState('')
   const [creandoEstudiante, setCreandoEstudiante] = useState(false)
 
   // ── Invitado ──
@@ -101,6 +102,7 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
     setCarreraEstudiante(undefined)
     setCicloEstudiante(undefined)
     setJornadaEstudiante(undefined)
+    setMateriasEstudiante('')
     setNombreInvitado('')
     setNumeroDocInvitado('')
   }
@@ -134,6 +136,7 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
     if (!carreraEstudiante) { message.warning('Selecciona la carrera'); return }
     if (!cicloEstudiante) { message.warning('Selecciona el ciclo'); return }
     if (!jornadaEstudiante) { message.warning('Selecciona la jornada'); return }
+    if (!materiasEstudiante.trim()) { message.warning('Ingresa al menos una materia'); return }
 
     setCreandoEstudiante(true)
     try {
@@ -142,7 +145,14 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
         email: emailEstudiante.trim(),
         rol: 'usuario',
         tipoPersona: 'ESTUDIANTE',
-        carreras: [{ nombre: carreraEstudiante, ciclos: [{ numero: cicloEstudiante, materias: [] }] }],
+        carreras: [{
+          nombre: carreraEstudiante,
+          ciclos: [{
+            numero: cicloEstudiante,
+            materias: materiasEstudiante.split(',').map(m => m.trim()).filter(Boolean),
+            jornada: jornadaEstudiante,
+          }],
+        }],
       })
       // Se vuelve a pedir con las relaciones completas (carreras/ciclos) para que
       // el panel de Uso de Biblioteca funcione igual que con un docente.
@@ -421,6 +431,16 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
                       </Button>
                     ))}
                   </div>
+                </div>
+                <div className="form-field">
+                  <label className="field-label">Materias que cursa</label>
+                  <Input
+                    placeholder="Ej: Programación, Base de Datos, Matemáticas"
+                    value={materiasEstudiante}
+                    onChange={e => setMateriasEstudiante(e.target.value)}
+                    size="large"
+                  />
+                  <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>Escribe las materias separadas por coma.</p>
                 </div>
                 <Button className="btn-confirmar" block size="large" onClick={crearYRegistrarEstudiante} loading={creandoEstudiante} style={{ marginTop: 8 }}>
                   Registrar e ingresar

@@ -61,6 +61,7 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
   const opcionesCiclo = carreraActual?.ciclos.map((c: any) => ({ value: c.numero, label: `${c.numero}° Ciclo` })) ?? []
   const cicloActual = carreraActual?.ciclos.find((c: any) => c.numero === cicloSeleccionado)
   const opcionesMateria = cicloActual?.materias.map((m: any) => ({ value: m.nombre, label: m.nombre })) ?? []
+  const jornadaHabitual: string | undefined = cicloActual?.jornada
 
   // Auto-selección: si solo hay una opción posible, se precarga sola — el
   // docente no tiene que elegir algo que de todos modos es lo único que hay.
@@ -75,6 +76,12 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
       setCicloSeleccionado(opcionesCiclo[0].value)
     }
   }, [carreraSeleccionada])
+
+  useEffect(() => {
+    if (cicloSeleccionado && jornadaHabitual && !jornadaSeleccionada) {
+      setJornadaSeleccionada(jornadaHabitual)
+    }
+  }, [cicloSeleccionado, jornadaHabitual])
 
   useEffect(() => {
     if (opcionesMateria.length === 1 && cicloSeleccionado) {
@@ -98,6 +105,7 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
   }
 
   const esInvitado = docente?.tipoPersona === 'INVITADO'
+  const esDocenteOEstudiante = !esInvitado
 
   const handleConfirmar = async () => {
     if (!actividad) { message.warning('Selecciona una actividad'); return }
@@ -176,7 +184,7 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
         </div>
       )}
 
-      {cicloSeleccionado && (
+      {cicloSeleccionado && !jornadaHabitual && (
         <div className="form-field">
           <label className="field-label">Jornada</label>
           <ChipGroup opciones={jornadas} valor={jornadaSeleccionada}
@@ -184,14 +192,14 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
         </div>
       )}
 
-      {jornadaSeleccionada && opcionesMateria.length > 1 && (
+      {esDocenteOEstudiante && jornadaSeleccionada && opcionesMateria.length > 1 && (
         <div className="form-field">
           <label className="field-label">Materia</label>
           <ChipGroup opciones={opcionesMateria} valor={materiaSeleccionada} onChange={setMateriaSeleccionada} />
         </div>
       )}
 
-      {jornadaSeleccionada && opcionesMateria.length === 1 && (
+      {esDocenteOEstudiante && jornadaSeleccionada && opcionesMateria.length === 1 && (
         <div style={{ fontSize: 12, color: '#94A3B8', marginTop: -12, marginBottom: 18 }}>
           Materia: <strong style={{ color: '#00796B' }}>{opcionesMateria[0].label}</strong> (única para este ciclo — precargada)
         </div>

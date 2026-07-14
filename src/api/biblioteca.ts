@@ -22,14 +22,14 @@ export const login = (email: string, password: string) =>
 export const getDocenteByRfid = (uid: string) =>
   api.get(`/docentes/rfid/${uid}`).then(r => r.data)
 
-export const getDocentes = () =>
-  api.get('/docentes').then(r => r.data)
-
 export const buscarPorEmail = (email: string) =>
   api.get(`/docentes/email/${encodeURIComponent(email)}`).then(r => r.data)
 
 export const buscarPorDocumento = (numero: string) =>
   api.get(`/docentes/documento/${encodeURIComponent(numero)}`).then(r => r.data)
+
+export const getDocentes = () =>
+  api.get('/docentes').then(r => r.data)
 
 export const actualizarDocente = (id: number, data: Partial<{
   rfid: string
@@ -46,7 +46,7 @@ export const crearDocente = (data: {
   numeroDocumento?: string
   rol?: string
   tipoPersona?: string
-  carreras?: { nombre: string; ciclos: { numero: number; materias: string[] }[] }[]
+  carreras?: { nombre: string; ciclos: { numero: number; materias: string[]; jornada?: string }[] }[]
 }) => api.post('/docentes', data).then(r => r.data)
 
 export const actualizarCiclosDocente = (id: number, carrera: string, ciclos: { numero: number; materias: string[] }[]) =>
@@ -57,6 +57,7 @@ export const agregarCarreraDocente = (id: number, carrera: string) =>
 
 export const quitarCarreraDocente = (id: number, carrera: string) =>
   api.delete(`/docentes/${id}/carreras/${encodeURIComponent(carrera)}`).then(r => r.data)
+
 export const cambiarRolDocente = (id: number, rol: string) =>
   api.patch(`/docentes/${id}/rol`, { rol }).then(r => r.data)
 
@@ -109,6 +110,12 @@ export const actualizarLibro = (id: number, data: Partial<{
 export const eliminarLibro = (id: number) =>
   api.delete(`/libros/${id}`).then(r => r.data)
 
+export const getPapeleraLibros = () =>
+  api.get('/libros/papelera').then(r => r.data)
+
+export const restaurarLibro = (id: number) =>
+  api.patch(`/libros/${id}/restaurar`).then(r => r.data)
+
 export const buscarLibros = (texto?: string, programa?: string) =>
   api.get('/libros/buscar', { params: { texto, programa } }).then(r => r.data)
 
@@ -120,12 +127,6 @@ export const importarLoteLibros = (libros: any[]) =>
 
 export const exportarTodosLibros = () =>
   api.get('/libros/exportar-todos').then(r => r.data)
-
-export const getPapeleraLibros = () =>
-  api.get('/libros/papelera').then(r => r.data)
-
-export const restaurarLibro = (id: number) =>
-  api.patch(`/libros/${id}/restaurar`).then(r => r.data)
 
 // ───── PRÉSTAMOS ─────
 
@@ -157,17 +158,24 @@ export const crearRegistro = (data: {
 
 export const getStatsRegistros = (anio: number, mes: number) =>
   api.get(`/registros/stats/${anio}/${mes}`).then(r => r.data)
-export const getStatsPeriodo = (periodo: string) =>
-  api.get('/registros/stats-periodo', { params: { periodo } }).then(r => r.data)
+
+export const getStatsPeriodo = (periodo: string, tipoPersona?: string, carrera?: string, materia?: string) =>
+  api.get('/registros/stats-periodo', { params: { periodo, tipoPersona, carrera, materia } }).then(r => r.data)
 
 export const getComparativaAnual = () =>
   api.get('/registros/comparativa-anual').then(r => r.data)
 
+export const getComparativaPorTipo = (periodo: string) =>
+  api.get('/registros/comparativa-por-tipo', { params: { periodo } }).then(r => r.data)
+
+export const getMateriasDisponibles = () =>
+  api.get('/registros/materias-disponibles').then(r => r.data)
+
 export const getRegistrosMes = (anio: number, mes: number) =>
   api.get(`/registros/mes/${anio}/${mes}`).then(r => r.data)
 
-export const getRankingVisitasUsuarios = (periodo?: string) =>
-  api.get('/registros/ranking-usuarios', { params: { periodo } }).then(r => r.data)
+export const getRankingVisitasUsuarios = (periodo?: string, tipoPersona?: string) =>
+  api.get('/registros/ranking-usuarios', { params: { periodo, tipoPersona } }).then(r => r.data)
 
 // ───── EVENTOS PÚBLICOS (catálogo sin login) ─────
 
@@ -190,7 +198,7 @@ export const getCarrerasMasClickeadas = (periodo?: string) =>
 export const getRankingPrestamosLibros = (periodo?: string) =>
   api.get('/prestamos/ranking-libros', { params: { periodo } }).then(r => r.data)
 
-export const getRankingPrestamosUsuarios = (periodo?: string) =>
-  api.get('/prestamos/ranking-usuarios', { params: { periodo } }).then(r => r.data)
+export const getRankingPrestamosUsuarios = (periodo?: string, tipoPersona?: string) =>
+  api.get('/prestamos/ranking-usuarios', { params: { periodo, tipoPersona } }).then(r => r.data)
 
 export default api

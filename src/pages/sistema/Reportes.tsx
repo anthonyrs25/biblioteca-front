@@ -9,7 +9,20 @@ import {
   SwapOutlined, CheckCircleOutlined, BookOutlined,
 } from '@ant-design/icons'
 import dayjs, { Dayjs } from 'dayjs'
-import { getStatsPeriodo, getComparativaAnual, getLibros, getRegistrosMes, getTodosLosPrestamos, getDocentes, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios } from '../../api/biblioteca'
+import { getStatsPeriodo, getComparativaAnual, getComparativaPorTipo, getLibros, getRegistrosMes, getTodosLosPrestamos, getDocentes, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios, getMateriasDisponibles } from '../../api/biblioteca'
+
+const CARRERAS_DISPONIBLES = [
+  'Desarrollo de Software',
+  'Diseño Gráfico',
+  'Gastronomía',
+  'Marketing Digital y Negocios',
+  'Turismo',
+  'Enfermería',
+  'Contabilidad y Asesoría Tributaria',
+  'Redes y Telecomunicaciones',
+  'Electricidad',
+  'Talento Humano',
+]
 
 type TabKey = 'resumen' | 'visitas' | 'prestamos' | 'analitica'
 
@@ -55,6 +68,12 @@ function Reportes() {
   const [periodoAnalitica, setPeriodoAnalitica] = useState<string>('todo')
   const [periodoResumen, setPeriodoResumen] = useState<string>('mes')
   const [comparativaAnual, setComparativaAnual] = useState<any[]>([])
+  const [comparativaPorTipo, setComparativaPorTipo] = useState<any[]>([])
+  const [tipoUsuarioResumen, setTipoUsuarioResumen] = useState<string | undefined>()
+  const [tipoUsuarioAnalitica, setTipoUsuarioAnalitica] = useState<string | undefined>()
+  const [carreraResumen, setCarreraResumen] = useState<string | undefined>()
+  const [materiaResumen, setMateriaResumen] = useState<string | undefined>()
+  const [materiasDisponibles, setMateriasDisponibles] = useState<string[]>([])
 
   const mesNombre = dayjs(`${anio}-${String(mes).padStart(2, '0')}-01`)
     .toDate().toLocaleString('es-EC', { month: 'long', year: 'numeric' })
@@ -78,12 +97,17 @@ function Reportes() {
   useEffect(() => { cargarDatos() }, [anio, mes])
 
   useEffect(() => {
-    getStatsPeriodo(periodoResumen).then(setStats)
-  }, [periodoResumen])
+    getStatsPeriodo(periodoResumen, tipoUsuarioResumen, carreraResumen, materiaResumen).then(setStats)
+  }, [periodoResumen, tipoUsuarioResumen, carreraResumen, materiaResumen])
+
+  useEffect(() => {
+    getMateriasDisponibles().then(setMateriasDisponibles)
+  }, [])
 
   useEffect(() => {
     getComparativaAnual().then(setComparativaAnual)
-  }, [])
+    getComparativaPorTipo(periodoResumen).then(setComparativaPorTipo)
+  }, [periodoResumen])
 
   useEffect(() => {
     setCargandoAnalitica(true)
@@ -91,9 +115,9 @@ function Reportes() {
       getTotalVisitasPublicas(periodoAnalitica),
       getLibrosMasBuscados(periodoAnalitica),
       getCarrerasMasClickeadas(periodoAnalitica),
-      getRankingVisitasUsuarios(periodoAnalitica),
+      getRankingVisitasUsuarios(periodoAnalitica, tipoUsuarioAnalitica),
       getRankingPrestamosLibros(periodoAnalitica),
-      getRankingPrestamosUsuarios(periodoAnalitica),
+      getRankingPrestamosUsuarios(periodoAnalitica, tipoUsuarioAnalitica),
     ]).then(([visitas, buscados, carreras, visitasUsuarios, librosPrestados, prestamosUsuarios]) => {
       setVisitasPublicas(visitas)
       setLibrosMasBuscados(buscados)
@@ -102,7 +126,7 @@ function Reportes() {
       setRankingLibros(librosPrestados)
       setRankingPrestamosUsuarios(prestamosUsuarios)
     }).finally(() => setCargandoAnalitica(false))
-  }, [periodoAnalitica])
+  }, [periodoAnalitica, tipoUsuarioAnalitica])
 
   const maxCarrera = stats?.porCarrera?.length > 0
     ? Math.max(...stats.porCarrera.map((c: any) => c.visitas))
@@ -328,20 +352,61 @@ function Reportes() {
             label: 'Resumen del mes',
             children: (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                  <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Período:</span>
-                  <Select
-                    value={periodoResumen}
-                    onChange={setPeriodoResumen}
-                    style={{ width: 160 }}
-                    options={[
-                      { value: 'dia', label: 'Último día' },
-                      { value: 'semana', label: 'Última semana' },
-                      { value: 'mes', label: 'Último mes' },
-                      { value: 'anio', label: 'Último año' },
-                      { value: 'todo', label: 'Todo el historial' },
-                    ]}
-                  />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Período:</span>
+                    <Select
+                      value={periodoResumen}
+                      onChange={setPeriodoResumen}
+                      style={{ width: 160 }}
+                      options={[
+                        { value: 'dia', label: 'Último día' },
+                        { value: 'semana', label: 'Última semana' },
+                        { value: 'mes', label: 'Último mes' },
+                        { value: 'anio', label: 'Último año' },
+                        { value: 'todo', label: 'Todo el historial' },
+                      ]}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Tipo de usuario:</span>
+                    <Select
+                      value={tipoUsuarioResumen}
+                      onChange={setTipoUsuarioResumen}
+                      allowClear
+                      placeholder="Todos"
+                      style={{ width: 160 }}
+                      options={[
+                        { value: 'DOCENTE', label: 'Docentes' },
+                        { value: 'ESTUDIANTE', label: 'Estudiantes' },
+                        { value: 'INVITADO', label: 'Invitados' },
+                      ]}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Carrera:</span>
+                    <Select
+                      value={carreraResumen}
+                      onChange={setCarreraResumen}
+                      allowClear
+                      placeholder="Todas"
+                      showSearch
+                      style={{ width: 200 }}
+                      options={CARRERAS_DISPONIBLES.map(c => ({ value: c, label: c }))}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Materia:</span>
+                    <Select
+                      value={materiaResumen}
+                      onChange={setMateriaResumen}
+                      allowClear
+                      placeholder="Todas"
+                      showSearch
+                      style={{ width: 200 }}
+                      options={materiasDisponibles.map(m => ({ value: m, label: m }))}
+                    />
+                  </div>
                 </div>
                 <div className="kpi-grid">
                   <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('visitas')}>
@@ -427,6 +492,29 @@ function Reportes() {
                   </div>
                 )}
 
+                {comparativaPorTipo.length > 0 && (
+                  <div className="reportes-grid-inferior" style={{ marginTop: 20 }}>
+                    <div className="reporte-card" style={{ gridColumn: '1 / -1' }}>
+                      <h3 className="reporte-card-titulo">Comparativa entre Docentes, Estudiantes e Invitados</h3>
+                      <ResponsiveContainer width="100%" height={260}>
+                        <BarChart data={comparativaPorTipo.map((t: any) => ({
+                          ...t,
+                          etiqueta: t.tipoPersona === 'DOCENTE' ? 'Docentes' : t.tipoPersona === 'ESTUDIANTE' ? 'Estudiantes' : 'Invitados',
+                        }))}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="etiqueta" />
+                          <YAxis allowDecimals={false} />
+                          <RTooltip />
+                          <Legend />
+                          <Bar dataKey="visitas" name="Visitas" fill="#00695C" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="prestamos" name="Préstamos" fill="#00897B" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="devoluciones" name="Devoluciones" fill="#80CBC4" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
                 {comparativaAnual.length > 0 && (
                   <div className="reportes-grid-inferior" style={{ marginTop: 20 }}>
                     <div className="reporte-card" style={{ gridColumn: '1 / -1' }}>
@@ -499,20 +587,37 @@ function Reportes() {
             label: 'Analítica',
             children: (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                  <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Periodo:</span>
-                  <Select
-                    value={periodoAnalitica}
-                    onChange={setPeriodoAnalitica}
-                    style={{ width: 160 }}
-                    options={[
-                      { value: 'dia', label: 'Último día' },
-                      { value: 'semana', label: 'Última semana' },
-                      { value: 'mes', label: 'Último mes' },
-                      { value: 'anio', label: 'Último año' },
-                      { value: 'todo', label: 'Todo el historial' },
-                    ]}
-                  />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Periodo:</span>
+                    <Select
+                      value={periodoAnalitica}
+                      onChange={setPeriodoAnalitica}
+                      style={{ width: 160 }}
+                      options={[
+                        { value: 'dia', label: 'Último día' },
+                        { value: 'semana', label: 'Última semana' },
+                        { value: 'mes', label: 'Último mes' },
+                        { value: 'anio', label: 'Último año' },
+                        { value: 'todo', label: 'Todo el historial' },
+                      ]}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Tipo de usuario (rankings):</span>
+                    <Select
+                      value={tipoUsuarioAnalitica}
+                      onChange={setTipoUsuarioAnalitica}
+                      allowClear
+                      placeholder="Todos"
+                      style={{ width: 160 }}
+                      options={[
+                        { value: 'DOCENTE', label: 'Docentes' },
+                        { value: 'ESTUDIANTE', label: 'Estudiantes' },
+                        { value: 'INVITADO', label: 'Invitados' },
+                      ]}
+                    />
+                  </div>
                 </div>
 
                 <div className="kpi-grid">
