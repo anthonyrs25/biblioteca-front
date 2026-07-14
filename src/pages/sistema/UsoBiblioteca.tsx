@@ -97,12 +97,16 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
     setMateriaSeleccionada(undefined)
   }
 
+  const esInvitado = docente?.tipoPersona === 'INVITADO'
+
   const handleConfirmar = async () => {
     if (!actividad) { message.warning('Selecciona una actividad'); return }
-    if (!carreraSeleccionada) { message.warning('Selecciona una carrera'); return }
-    if (!cicloSeleccionado) { message.warning('Selecciona el ciclo'); return }
-    if (!jornadaSeleccionada) { message.warning('Selecciona la jornada'); return }
-    if (!materiaSeleccionada) { message.warning('Selecciona la materia'); return }
+    if (!esInvitado) {
+      if (!carreraSeleccionada) { message.warning('Selecciona una carrera'); return }
+      if (!cicloSeleccionado) { message.warning('Selecciona el ciclo'); return }
+      if (!jornadaSeleccionada) { message.warning('Selecciona la jornada'); return }
+      if (!materiaSeleccionada) { message.warning('Selecciona la materia'); return }
+    }
 
     setGuardando(true)
     try {
@@ -111,10 +115,10 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
         usuarioId: docente.id,
         actividad,
         detalle: detalle || undefined,
-        carrera: carreraSeleccionada,
-        ciclo: cicloSeleccionado,
-        jornada: jornadaSeleccionada,
-        materia: materiaSeleccionada,
+        carrera: esInvitado ? undefined : carreraSeleccionada,
+        ciclo: esInvitado ? undefined : cicloSeleccionado,
+        jornada: esInvitado ? undefined : jornadaSeleccionada,
+        materia: esInvitado ? undefined : materiaSeleccionada,
       })
       setConfirmado(true)
       message.success('Registro de uso guardado')

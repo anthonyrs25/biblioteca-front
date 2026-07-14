@@ -25,6 +25,12 @@ export const getDocenteByRfid = (uid: string) =>
 export const getDocentes = () =>
   api.get('/docentes').then(r => r.data)
 
+export const buscarPorEmail = (email: string) =>
+  api.get(`/docentes/email/${encodeURIComponent(email)}`).then(r => r.data)
+
+export const buscarPorDocumento = (numero: string) =>
+  api.get(`/docentes/documento/${encodeURIComponent(numero)}`).then(r => r.data)
+
 export const actualizarDocente = (id: number, data: Partial<{
   rfid: string
   nombre: string
@@ -33,8 +39,13 @@ export const actualizarDocente = (id: number, data: Partial<{
 
 export const crearDocente = (data: {
   nombre: string
-  iniciales: string
+  iniciales?: string
   rfid?: string
+  email?: string
+  tipoDocumento?: string
+  numeroDocumento?: string
+  rol?: string
+  tipoPersona?: string
   carreras?: { nombre: string; ciclos: { numero: number; materias: string[] }[] }[]
 }) => api.post('/docentes', data).then(r => r.data)
 
