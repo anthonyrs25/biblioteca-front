@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Table, Button, Modal, Form, Input, InputNumber, App, Popconfirm, Tag, Select } from 'antd'
 import { ArrowLeftOutlined, PlusOutlined, EditOutlined, DeleteOutlined, BookOutlined, UploadOutlined, SearchOutlined, FileExcelOutlined, DownloadOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
-import { getLibros, crearLibro, actualizarLibro, eliminarLibro, buscarLibros, getProgramas, importarLoteLibros, exportarTodosLibros } from '../../api/biblioteca'
+import { getLibros, crearLibro, actualizarLibro, eliminarLibro, buscarLibros, getProgramas, importarLoteLibros, exportarTodosLibros, getPapeleraLibros, restaurarLibro } from '../../api/biblioteca'
+import { useModo } from '../../context/ModoContext'
 
 const limpiarPrograma = (nombre: string) =>
   nombre
@@ -54,6 +55,7 @@ const obtenerValor = (row: Record<string, any>, aliases: string[]): string => {
 function GestionLibros() {
   const navigate = useNavigate()
   const { message } = App.useApp()
+  const { modoAdminActivo } = useModo()
   const [libros, setLibros] = useState<any[]>([])
   const [cargando, setCargando] = useState(false)
   const [modalAbierto, setModalAbierto] = useState(false)
@@ -65,6 +67,26 @@ function GestionLibros() {
   const [pageSize, setPageSize] = useState(25)
   const [importando, setImportando] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [modalPapelera, setModalPapelera] = useState(false)
+  const [papelera, setPapelera] = useState<any[]>([])
+  const [cargandoPapelera, setCargandoPapelera] = useState(false)
+
+  const abrirPapelera = () => {
+    setModalPapelera(true)
+    setCargandoPapelera(true)
+    getPapeleraLibros().then(setPapelera).finally(() => setCargandoPapelera(false))
+  }
+
+  const handleRestaurar = async (id: number) => {
+    try {
+      await restaurarLibro(id)
+      message.success('Libro restaurado')
+      setPapelera(papelera.filter(l => l.id !== id))
+      cargarLibros()
+    } catch {
+      message.error('Error al restaurar el libro')
+    }
+  }
 
   const cargarLibros = () => {
     setCargando(true)
@@ -259,19 +281,19 @@ function GestionLibros() {
     },
     {
       title: 'Acciones', key: 'acciones', width: 100,
-      render: (_: any, libro: any) => (
+      render: (_: any, libro: any) => modoAdminActivo ? (
         <div style={{ display: 'flex', gap: 8 }}>
           <Button size="small" icon={<EditOutlined />} onClick={() => abrirEditar(libro)} />
           <Popconfirm
             title="¿Eliminar este libro?"
-            description="Esta acción no se puede deshacer."
+            description="Se moverá a la papelera — se puede restaurar después."
             onConfirm={() => handleEliminar(libro.id)}
             okText="Sí, eliminar" cancelText="Cancelar"
           >
             <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </div>
-      ),
+      ) : <span style={{ color: '#CBD5E1' }}>—</span>,
     },
   ]
 
@@ -290,6 +312,11 @@ function GestionLibros() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportarExcel} />
+          {modoAdminActivo && (
+            <Button icon={<DeleteOutlined />} onClick={abrirPapelera}>
+              Papelera
+            </Button>
+          )}
           <Button icon={<FileExcelOutlined />} onClick={descargarPlantilla}>
             Descargar plantilla
           </Button>
@@ -388,6 +415,37 @@ function GestionLibros() {
             <Input.TextArea rows={3} />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="Papelera de libros"
+        open={modalPapelera}
+        onCancel={() => setModalPapelera(false)}
+        footer={null}
+        width={700}
+      >
+        {papelera.length === 0 && !cargandoPapelera ? (
+          <p style={{ color: '#94A3B8', textAlign: 'center', padding: '30px 0' }}>La papelera está vacía.</p>
+        ) : (
+          <Table
+            dataSource={papelera}
+            loading={cargandoPapelera}
+            rowKey="id"
+            pagination={{ pageSize: 8 }}
+            size="small"
+            columns={[
+              { title: 'Código', dataIndex: 'codigo', width: 110 },
+              { title: 'Título', dataIndex: 'titulo' },
+              { title: 'Autor', dataIndex: 'autor' },
+              {
+                title: '', key: 'restaurar', width: 110,
+                render: (_: any, libro: any) => (
+                  <Button size="small" onClick={() => handleRestaurar(libro.id)}>Restaurar</Button>
+                ),
+              },
+            ]}
+          />
+        )}
       </Modal>
     </div>
   )

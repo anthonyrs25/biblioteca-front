@@ -13,6 +13,7 @@ import Gestion from './pages/sistema/Gestion'
 import GestionLibros from './pages/sistema/GestionLibros'
 import GestionDocentes from './pages/sistema/GestionDocentes'
 import ProtectedRoute from './components/ProtectedRoute'
+import { ModoProvider } from './context/ModoContext'
 import api from './api/biblioteca'
 
 function RfidPoller({ onDetectado }: { onDetectado: (docente: any) => void }) {
@@ -131,73 +132,77 @@ function App() {
     <AntApp>
       <div className="aurora-bg" />
       <BrowserRouter>
-        <RfidPoller onDetectado={handleDetectado} />
+        <ModoProvider>
+          <RfidPoller onDetectado={handleDetectado} />
 
-        <Modal
-          open={modalAbierto}
-          onCancel={cerrarModal}
-          footer={null}
-          width={620}
-          destroyOnClose
-          centered
-          styles={{ body: { padding: 0 } }}
-        >
-          {modalAbierto && docenteActivo && (
-            <>
-              {vista === 'docente' && (
-                <DocentePanel
-                  docente={docenteActivo}
-                  onCerrar={cerrarModal}
-                  onIr={setVista}
-                />
-              )}
-              {vista === 'uso' && (
-                <UsoBiblioteca
-                  docente={docenteActivo}
-                  onTerminar={cerrarModal}
-                  enModal
-                />
-              )}
-              {vista === 'prestamo' && (
-                <Prestamo
-                  docente={docenteActivo}
-                  onTerminar={cerrarModal}
-                  enModal
-                />
-              )}
-              {vista === 'devolucion' && (
-                <Devolucion
-                  docente={docenteActivo}
-                  onTerminar={cerrarModal}
-                  enModal
-                />
-              )}
-            </>
-          )}
-        </Modal>
+          <Modal
+            open={modalAbierto}
+            onCancel={cerrarModal}
+            footer={null}
+            width={620}
+            destroyOnClose
+            centered
+            styles={{ body: { padding: 0 } }}
+          >
+            {modalAbierto && docenteActivo && (
+              <>
+                {vista === 'docente' && (
+                  <DocentePanel
+                    docente={docenteActivo}
+                    onCerrar={cerrarModal}
+                    onIr={setVista}
+                  />
+                )}
+                {vista === 'uso' && (
+                  <UsoBiblioteca
+                    docente={docenteActivo}
+                    onTerminar={cerrarModal}
+                    enModal
+                  />
+                )}
+                {vista === 'prestamo' && (
+                  <Prestamo
+                    docente={docenteActivo}
+                    onTerminar={cerrarModal}
+                    enModal
+                  />
+                )}
+                {vista === 'devolucion' && (
+                  <Devolucion
+                    docente={docenteActivo}
+                    onTerminar={cerrarModal}
+                    enModal
+                  />
+                )}
+              </>
+            )}
+          </Modal>
 
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/catalogo" element={<Catalogo />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/sistema" element={
-            <ProtectedRoute>
-              <SistemaHome onDetectado={handleDetectado} />
-            </ProtectedRoute>
-          } />
-          <Route path="/sistema/reportes" element={
-            <ProtectedRoute><Reportes /></ProtectedRoute>
-          } />
-          <Route path="/sistema/gestion" element={
-            <ProtectedRoute><Gestion /></ProtectedRoute>
-          } />
-          <Route path="/sistema/gestion/libros" element={
-            <ProtectedRoute><GestionLibros /></ProtectedRoute>
-          } />
-          <Route path="/sistema/gestion/docentes" element={
-            <ProtectedRoute><GestionDocentes /></ProtectedRoute>
-          } />
-        </Routes>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/catalogo" element={<Catalogo />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/sistema" element={
+              <ProtectedRoute>
+                <SistemaHome onDetectado={handleDetectado} />
+              </ProtectedRoute>
+
+            } />
+
+            <Route path="/sistema/reportes" element={
+              <ProtectedRoute><Reportes /></ProtectedRoute>
+            } />
+            <Route path="/sistema/gestion" element={
+              <ProtectedRoute><Gestion /></ProtectedRoute>
+            } />
+            <Route path="/sistema/gestion/libros" element={
+              <ProtectedRoute><GestionLibros /></ProtectedRoute>
+            } />
+            <Route path="/sistema/gestion/docentes" element={
+              <ProtectedRoute><GestionDocentes /></ProtectedRoute>
+            } />
+          </Routes>
+        </ModoProvider>
       </BrowserRouter>
     </AntApp>
   )

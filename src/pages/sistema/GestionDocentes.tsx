@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Table, Button, Modal, Form, Input, Select, App, Tag, Divider, Popconfirm } from 'antd'
-import { ArrowLeftOutlined, EditOutlined, TeamOutlined, CreditCardOutlined, PlusOutlined, WifiOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, EditOutlined, TeamOutlined, CreditCardOutlined, PlusOutlined, WifiOutlined, DeleteOutlined, CrownOutlined } from '@ant-design/icons'
+import { useModo } from '../../context/ModoContext'
 import {
   getDocentes, actualizarDocente, crearDocente, actualizarCiclosDocente,
   agregarCarreraDocente, quitarCarreraDocente, getUltimoEscaneoDesde, getDocenteByRfid,
+  cambiarRolDocente, eliminarDocente, getPapeleraDocentes, restaurarDocente,
 } from '../../api/biblioteca'
 
 const CARRERAS_DISPONIBLES = [
@@ -28,6 +30,7 @@ type CarreraEditando = { nombre: string; ciclos: CicloEditando[] }
 function GestionDocentes() {
   const navigate = useNavigate()
   const { message } = App.useApp()
+  const { modoAdminActivo } = useModo()
   const [docentes, setDocentes] = useState<any[]>([])
   const [cargando, setCargando] = useState(false)
   const [modalEditar, setModalEditar] = useState(false)
@@ -37,9 +40,49 @@ function GestionDocentes() {
   const [carreraNuevaSel, setCarreraNuevaSel] = useState<string | undefined>()
   const [formEditar] = Form.useForm()
   const [formCrear] = Form.useForm()
+  const [modalPapelera, setModalPapelera] = useState(false)
+  const [papelera, setPapelera] = useState<any[]>([])
+  const [cargandoPapelera, setCargandoPapelera] = useState(false)
 
   const [vinculando, setVinculando] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const abrirPapelera = () => {
+    setModalPapelera(true)
+    setCargandoPapelera(true)
+    getPapeleraDocentes().then(setPapelera).finally(() => setCargandoPapelera(false))
+  }
+
+  const handleRestaurar = async (id: number) => {
+    try {
+      await restaurarDocente(id)
+      message.success('Docente restaurado')
+      setPapelera(papelera.filter(d => d.id !== id))
+      cargarDocentes()
+    } catch {
+      message.error('Error al restaurar')
+    }
+  }
+
+  const handleEliminar = async (id: number) => {
+    try {
+      await eliminarDocente(id)
+      message.success('Docente eliminado (movido a la papelera)')
+      cargarDocentes()
+    } catch {
+      message.error('Error al eliminar')
+    }
+  }
+
+  const handleCambiarRol = async (id: number, rol: string) => {
+    try {
+      await cambiarRolDocente(id, rol)
+      message.success('Rol actualizado')
+      cargarDocentes()
+    } catch {
+      message.error('Error al cambiar el rol')
+    }
+  }
 
   const cargarDocentes = () => {
     setCargando(true)
@@ -195,12 +238,43 @@ function GestionDocentes() {
     },
     { title: 'Préstamos activos', dataIndex: 'prestamosActivos', key: 'prestamosActivos', width: 140 },
     {
-      title: 'Acciones', key: 'acciones', width: 100,
-      render: (_: any, docente: any) => (
-        <Button size="small" icon={<EditOutlined />} onClick={() => abrirEditar(docente)}>
-          Editar
-        </Button>
+      title: 'Rol', dataIndex: 'rol', key: 'rol', width: 150,
+      render: (rol: string, docente: any) => modoAdminActivo ? (
+        <Select
+          value={rol}
+          size="small"
+          style={{ width: 130 }}
+          onChange={val => handleCambiarRol(docente.id, val)}
+          options={[
+            { value: 'usuario', label: 'Usuario' },
+            { value: 'bibliotecario', label: 'Bibliotecario' },
+            { value: 'admin', label: 'Administrador' },
+          ]}
+        />
+      ) : (
+        <Tag color={rol === 'admin' ? 'gold' : rol === 'bibliotecario' ? 'blue' : 'default'}>
+          {rol === 'admin' && <CrownOutlined style={{ marginRight: 4 }} />}
+          {rol || 'usuario'}
+        </Tag>
       ),
+    },
+    {
+      title: 'Acciones', key: 'acciones', width: 160,
+      render: (_: any, docente: any) => modoAdminActivo ? (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button size="small" icon={<EditOutlined />} onClick={() => abrirEditar(docente)}>
+            Editar
+          </Button>
+          <Popconfirm
+            title="¿Eliminar este docente?"
+            description="Se moverá a la papelera — se puede restaurar después."
+            onConfirm={() => handleEliminar(docente.id)}
+            okText="Sí, eliminar" cancelText="Cancelar"
+          >
+            <Button size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </div>
+      ) : <span style={{ color: '#CBD5E1' }}>—</span>,
     },
   ]
 
@@ -221,14 +295,21 @@ function GestionDocentes() {
           </h1>
           <p className="reportes-subtitulo">Administra los docentes registrados en el sistema</p>
         </div>
-        <Button
-          className="btn-exportar"
-          icon={<PlusOutlined />}
-          size="large"
-          onClick={() => { formCrear.resetFields(); setModalCrear(true) }}
-        >
-          Nuevo docente
-        </Button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {modoAdminActivo && (
+            <Button icon={<DeleteOutlined />} size="large" onClick={abrirPapelera}>
+              Papelera
+            </Button>
+          )}
+          <Button
+            className="btn-exportar"
+            icon={<PlusOutlined />}
+            size="large"
+            onClick={() => { formCrear.resetFields(); setModalCrear(true) }}
+          >
+            Nuevo docente
+          </Button>
+        </div>
       </div>
 
       <div className="reporte-card">
@@ -408,6 +489,36 @@ function GestionDocentes() {
             <Input.TextArea rows={2} placeholder="Ej: Programación, Base de Datos, Matemáticas" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="Papelera de docentes"
+        open={modalPapelera}
+        onCancel={() => setModalPapelera(false)}
+        footer={null}
+        width={600}
+      >
+        {papelera.length === 0 && !cargandoPapelera ? (
+          <p style={{ color: '#94A3B8', textAlign: 'center', padding: '30px 0' }}>La papelera está vacía.</p>
+        ) : (
+          <Table
+            dataSource={papelera}
+            loading={cargandoPapelera}
+            rowKey="id"
+            pagination={{ pageSize: 8 }}
+            size="small"
+            columns={[
+              { title: 'Nombre', dataIndex: 'nombre' },
+              { title: 'Iniciales', dataIndex: 'iniciales', width: 90 },
+              {
+                title: '', key: 'restaurar', width: 110,
+                render: (_: any, docente: any) => (
+                  <Button size="small" onClick={() => handleRestaurar(docente.id)}>Restaurar</Button>
+                ),
+              },
+            ]}
+          />
+        )}
       </Modal>
     </div>
   )

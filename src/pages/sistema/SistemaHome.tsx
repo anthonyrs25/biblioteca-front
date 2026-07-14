@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Statistic, Modal, Input, Empty } from 'antd'
+import { Button, Statistic, Modal, Input, Empty, Switch, Tag } from 'antd'
 import {
   WifiOutlined, BookOutlined, SwapOutlined, TeamOutlined,
-  ClockCircleOutlined, LogoutOutlined, BarChartOutlined, SettingOutlined, SearchOutlined,
+  ClockCircleOutlined, LogoutOutlined, BarChartOutlined, SettingOutlined, SearchOutlined, CrownOutlined,
 } from '@ant-design/icons'
 import Logo from '../../components/Logo'
 import { getDocentes, getLibros } from '../../api/biblioteca'
+import { useModo } from '../../context/ModoContext'
 
 function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
   const navigate = useNavigate()
+  const { esAdmin, modoAdminActivo, activarModoAdmin, volverAModoBibliotecario } = useModo()
   const [hora, setHora] = useState(new Date())
   const [pulso, setPulso] = useState(false)
   const [totalLibros, setTotalLibros] = useState(0)
@@ -67,6 +69,18 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
             <ClockCircleOutlined style={{ marginRight: 6 }} />
             {hora.toLocaleTimeString('es-EC')}
           </div>
+          {esAdmin && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: modoAdminActivo ? '#FEF3C7' : '#F5F7FA', padding: '6px 12px', borderRadius: 10 }}>
+              <Tag color={modoAdminActivo ? 'gold' : 'default'} style={{ margin: 0 }}>
+                {modoAdminActivo ? <><CrownOutlined /> Administrador</> : 'Bibliotecario'}
+              </Tag>
+              <Switch
+                checked={modoAdminActivo}
+                onChange={checked => checked ? activarModoAdmin() : volverAModoBibliotecario()}
+                size="small"
+              />
+            </div>
+          )}
           <Button onClick={() => navigate('/sistema/reportes')} icon={<BarChartOutlined />} className="btn-reportes">
             Reportes
           </Button>

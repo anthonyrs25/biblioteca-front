@@ -46,6 +46,17 @@ export const agregarCarreraDocente = (id: number, carrera: string) =>
 
 export const quitarCarreraDocente = (id: number, carrera: string) =>
   api.delete(`/docentes/${id}/carreras/${encodeURIComponent(carrera)}`).then(r => r.data)
+export const cambiarRolDocente = (id: number, rol: string) =>
+  api.patch(`/docentes/${id}/rol`, { rol }).then(r => r.data)
+
+export const eliminarDocente = (id: number) =>
+  api.delete(`/docentes/${id}`).then(r => r.data)
+
+export const getPapeleraDocentes = () =>
+  api.get('/docentes/papelera').then(r => r.data)
+
+export const restaurarDocente = (id: number) =>
+  api.patch(`/docentes/${id}/restaurar`).then(r => r.data)
 
 // ───── VINCULACIÓN DE LLAVEROS RFID (sin tocar el firmware del ESP32) ─────
 
@@ -98,6 +109,12 @@ export const importarLoteLibros = (libros: any[]) =>
 
 export const exportarTodosLibros = () =>
   api.get('/libros/exportar-todos').then(r => r.data)
+
+export const getPapeleraLibros = () =>
+  api.get('/libros/papelera').then(r => r.data)
+
+export const restaurarLibro = (id: number) =>
+  api.patch(`/libros/${id}/restaurar`).then(r => r.data)
 
 // ───── PRÉSTAMOS ─────
 
