@@ -1,8 +1,10 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeftOutlined, BookOutlined, TeamOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, BookOutlined, TeamOutlined, UserAddOutlined } from '@ant-design/icons'
+import { useModo } from '../../context/ModoContext'
 
 function Gestion() {
   const navigate = useNavigate()
+  const { modoAdminActivo } = useModo()
 
   return (
     <div className="page-wrapper">
@@ -31,6 +33,15 @@ function Gestion() {
               <span className="opcion-desc">Cambiar el llavero RFID asignado a cada docente</span>
             </span>
           </button>
+          {modoAdminActivo && (
+            <button className="opcion-btn" onClick={() => navigate('/sistema/gestion/staff')}>
+              <UserAddOutlined style={{ fontSize: 26, color: '#D97706' }} />
+              <span>
+                <span className="opcion-titulo">Cuentas del sistema</span>
+                <span className="opcion-desc">Crear cuentas nuevas de bibliotecario o administrador</span>
+              </span>
+            </button>
+          )}
         </div>
       </div>
     </div>

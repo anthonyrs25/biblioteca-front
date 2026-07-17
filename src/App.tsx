@@ -12,6 +12,7 @@ import Reportes from './pages/sistema/Reportes'
 import Gestion from './pages/sistema/Gestion'
 import GestionLibros from './pages/sistema/GestionLibros'
 import GestionDocentes from './pages/sistema/GestionDocentes'
+import GestionStaff from './pages/sistema/GestionStaff'
 import ProtectedRoute from './components/ProtectedRoute'
 import { ModoProvider } from './context/ModoContext'
 import api from './api/biblioteca'
@@ -200,6 +201,9 @@ function App() {
             } />
             <Route path="/sistema/gestion/docentes" element={
               <ProtectedRoute><GestionDocentes /></ProtectedRoute>
+            } />
+            <Route path="/sistema/gestion/staff" element={
+              <ProtectedRoute><GestionStaff /></ProtectedRoute>
             } />
           </Routes>
         </ModoProvider>

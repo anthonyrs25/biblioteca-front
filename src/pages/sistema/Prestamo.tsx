@@ -43,12 +43,24 @@ function Prestamo({ docente, onTerminar, enModal }: Props) {
 
   if (!docente) return null
 
+  // Si la persona ya tiene un número de documento guardado (típico de un
+  // invitado registrado con su cédula) y elige "cédula" como respaldo,
+  // se lo prellenamos — sigue siendo editable, no obligatorio.
+  const handleTipoDocumentoChange = (valor: string) => {
+    setTipoDocumento(valor)
+    if (valor === 'cedula' && docente?.tipoDocumento === 'cedula' && docente?.numeroDocumento) {
+      setNumeroDocumento(docente.numeroDocumento)
+    } else {
+      setNumeroDocumento('')
+    }
+  }
+
   const handleConfirmar = async () => {
     if (!libroSeleccionado) return
-    if (!tipoDocumento) { message.warning('Selecciona el tipo de documento de respaldo'); return }
+    if (!tipoDocumento) { message.warning('Selecciona qué documento deja en garantía'); return }
     setGuardando(true)
     try {
-      await crearPrestamo(docente.id, libroSeleccionado.id, fechaDevolucion.toISOString())
+      await crearPrestamo(docente.id, libroSeleccionado.id, fechaDevolucion.toISOString(), tipoDocumento, numeroDocumento || undefined)
       await crearRegistro({
         tipo: 'prestamo',
         usuarioId: docente.id,
@@ -152,9 +164,9 @@ function Prestamo({ docente, onTerminar, enModal }: Props) {
             <>
               <div className="documento-row" style={{ marginBottom: 18 }}>
                 <div className="form-field" style={{ marginBottom: 0 }}>
-                  <label className="field-label">Documento de respaldo</label>
+                  <label className="field-label">Documento que deja en garantía</label>
                   <Select placeholder="Tipo de documento" options={tiposDocumento}
-                    value={tipoDocumento} onChange={setTipoDocumento} style={{ width: '100%' }} size="large" />
+                    value={tipoDocumento} onChange={handleTipoDocumentoChange} style={{ width: '100%' }} size="large" />
                 </div>
                 <div className="form-field" style={{ marginBottom: 0 }}>
                   <label className="field-label">Número <span style={{ color: '#94A3B8', fontWeight: 400 }}>(opcional)</span></label>

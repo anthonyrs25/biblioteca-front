@@ -17,6 +17,9 @@ api.interceptors.request.use((config) => {
 export const login = (email: string, password: string) =>
   api.post('/auth/login', { email, password }).then(r => r.data)
 
+export const crearCuentaStaff = (data: { nombre: string; email: string; password: string; rol: string }) =>
+  api.post('/auth/crear-cuenta', data).then(r => r.data)
+
 // ───── DOCENTES / USUARIOS ─────
 
 export const getDocenteByRfid = (uid: string) =>
@@ -130,8 +133,8 @@ export const exportarTodosLibros = () =>
 
 // ───── PRÉSTAMOS ─────
 
-export const crearPrestamo = (docenteId: number, libroId: number, fechaDevolucionEsperada?: string) =>
-  api.post('/prestamos', { docenteId, libroId, fechaDevolucionEsperada }).then(r => r.data)
+export const crearPrestamo = (docenteId: number, libroId: number, fechaDevolucionEsperada: string | undefined, tipoDocumento: string, numeroDocumento?: string) =>
+  api.post('/prestamos', { docenteId, libroId, fechaDevolucionEsperada, tipoDocumento, numeroDocumento }).then(r => r.data)
 
 export const devolverPrestamo = (prestamoId: number) =>
   api.patch(`/prestamos/devolver/${prestamoId}`).then(r => r.data)
