@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeftOutlined, BookOutlined, TeamOutlined, UserAddOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, BookOutlined, TeamOutlined, ReadOutlined, UserAddOutlined, IdcardOutlined } from '@ant-design/icons'
 import { useModo } from '../../context/ModoContext'
 
 function Gestion() {
@@ -30,7 +30,21 @@ function Gestion() {
             <TeamOutlined style={{ fontSize: 26, color: '#0ea5e9' }} />
             <span>
               <span className="opcion-titulo">Docentes</span>
-              <span className="opcion-desc">Cambiar el llavero RFID asignado a cada docente</span>
+              <span className="opcion-desc">Carreras, ciclos, materias y llavero RFID</span>
+            </span>
+          </button>
+          <button className="opcion-btn" onClick={() => navigate('/sistema/gestion/estudiantes')}>
+            <ReadOutlined style={{ fontSize: 26, color: '#7C3AED' }} />
+            <span>
+              <span className="opcion-titulo">Estudiantes</span>
+              <span className="opcion-desc">Carreras, ciclos, materias y llavero RFID</span>
+            </span>
+          </button>
+          <button className="opcion-btn" onClick={() => navigate('/sistema/gestion/invitados')}>
+            <IdcardOutlined style={{ fontSize: 26, color: '#DB2777' }} />
+            <span>
+              <span className="opcion-titulo">Invitados</span>
+              <span className="opcion-desc">Visitantes externos y su documento de identificación</span>
             </span>
           </button>
           {modoAdminActivo && (

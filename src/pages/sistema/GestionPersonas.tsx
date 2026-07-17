@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Table, Button, Modal, Form, Input, Select, App, Tag, Divider, Popconfirm } from 'antd'
-import { ArrowLeftOutlined, EditOutlined, TeamOutlined, CreditCardOutlined, PlusOutlined, WifiOutlined, DeleteOutlined, CrownOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, EditOutlined, TeamOutlined, CreditCardOutlined, PlusOutlined, WifiOutlined, DeleteOutlined, CrownOutlined, FilterOutlined } from '@ant-design/icons'
 import { useModo } from '../../context/ModoContext'
 import {
   getDocentes, actualizarDocente, crearDocente, actualizarCiclosDocente,
@@ -23,15 +23,29 @@ const CARRERAS_DISPONIBLES = [
 ]
 
 const OPCIONES_CICLO = [1, 2, 3, 4].map(n => ({ value: n, label: `${n}° Ciclo` }))
+const OPCIONES_JORNADA = [
+  { value: 'matutino', label: 'Matutino' },
+  { value: 'vespertino', label: 'Vespertino' },
+  { value: 'nocturno', label: 'Nocturno' },
+]
 
 type CicloEditando = { numero: number; materias: string }
 type CarreraEditando = { nombre: string; ciclos: CicloEditando[] }
 
-function GestionDocentes() {
+interface Props {
+  tipoPersona: 'DOCENTE' | 'ESTUDIANTE' | 'INVITADO'
+}
+
+function GestionPersonas({ tipoPersona }: Props) {
   const navigate = useNavigate()
   const { message } = App.useApp()
   const { modoAdminActivo } = useModo()
-  const [docentes, setDocentes] = useState<any[]>([])
+  const esDocente = tipoPersona === 'DOCENTE'
+  const esInvitado = tipoPersona === 'INVITADO'
+  const etiqueta = esDocente ? 'docente' : esInvitado ? 'invitado' : 'estudiante'
+  const etiquetaPlural = esDocente ? 'Docentes' : esInvitado ? 'Invitados' : 'Estudiantes'
+
+  const [personas, setPersonas] = useState<any[]>([])
   const [cargando, setCargando] = useState(false)
   const [modalEditar, setModalEditar] = useState(false)
   const [modalCrear, setModalCrear] = useState(false)
@@ -44,21 +58,27 @@ function GestionDocentes() {
   const [papelera, setPapelera] = useState<any[]>([])
   const [cargandoPapelera, setCargandoPapelera] = useState(false)
 
+  // ── Filtros ──
+  const [filtroCarrera, setFiltroCarrera] = useState<string | undefined>()
+  const [filtroCiclo, setFiltroCiclo] = useState<number | undefined>()
+  const [filtroJornada, setFiltroJornada] = useState<string | undefined>()
+  const [filtroMateria, setFiltroMateria] = useState<string | undefined>()
+
   const [vinculando, setVinculando] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const abrirPapelera = () => {
     setModalPapelera(true)
     setCargandoPapelera(true)
-    getPapeleraDocentes().then(setPapelera).finally(() => setCargandoPapelera(false))
+    getPapeleraDocentes().then(data => setPapelera(data.filter((d: any) => d.tipoPersona === tipoPersona))).finally(() => setCargandoPapelera(false))
   }
 
   const handleRestaurar = async (id: number) => {
     try {
       await restaurarDocente(id)
-      message.success('Docente restaurado')
+      message.success(`${esDocente ? 'Docente' : 'Estudiante'} restaurado`)
       setPapelera(papelera.filter(d => d.id !== id))
-      cargarDocentes()
+      cargarPersonas()
     } catch {
       message.error('Error al restaurar')
     }
@@ -67,8 +87,8 @@ function GestionDocentes() {
   const handleEliminar = async (id: number) => {
     try {
       await eliminarDocente(id)
-      message.success('Docente eliminado (movido a la papelera)')
-      cargarDocentes()
+      message.success(`${esDocente ? 'Docente' : 'Estudiante'} eliminado (movido a la papelera)`)
+      cargarPersonas()
     } catch {
       message.error('Error al eliminar')
     }
@@ -78,25 +98,54 @@ function GestionDocentes() {
     try {
       await cambiarRolDocente(id, rol)
       message.success('Rol actualizado')
-      cargarDocentes()
+      cargarPersonas()
     } catch {
       message.error('Error al cambiar el rol')
     }
   }
 
-  const cargarDocentes = () => {
+  const cargarPersonas = () => {
     setCargando(true)
     getDocentes()
-      .then(setDocentes)
-      .catch(() => message.error('Error al cargar los docentes'))
+      .then(data => setPersonas(data.filter((d: any) => d.tipoPersona === tipoPersona)))
+      .catch(() => message.error(`Error al cargar los ${etiquetaPlural.toLowerCase()}`))
       .finally(() => setCargando(false))
   }
 
-  useEffect(() => { cargarDocentes() }, [])
+  useEffect(() => { cargarPersonas() }, [tipoPersona])
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
-  const construirCarrerasEditando = (docente: any): CarreraEditando[] =>
-    (docente.carreras ?? [])
+  // Materias disponibles para el filtro: se calculan de las personas ya cargadas,
+  // no hace falta pedirlas aparte al backend.
+  const materiasDisponibles = useMemo(() => {
+    const set = new Set<string>()
+    personas.forEach(p => p.carreras?.forEach((dc: any) =>
+      dc.ciclos?.forEach((c: any) => c.materias?.forEach((m: any) => set.add(m.nombre)))
+    ))
+    return [...set].sort()
+  }, [personas])
+
+  const personasFiltradas = useMemo(() => {
+    if (esInvitado) return personas
+    return personas.filter(p => {
+      const carreras = p.carreras ?? []
+      if (filtroCarrera && !carreras.some((dc: any) => dc.carrera?.nombre === filtroCarrera)) return false
+      if (filtroCiclo && !carreras.some((dc: any) => dc.ciclos?.some((c: any) => c.numero === filtroCiclo))) return false
+      if (filtroJornada && !carreras.some((dc: any) => dc.ciclos?.some((c: any) => c.jornada === filtroJornada))) return false
+      if (filtroMateria && !carreras.some((dc: any) => dc.ciclos?.some((c: any) => c.materias?.some((m: any) => m.nombre === filtroMateria)))) return false
+      return true
+    })
+  }, [personas, filtroCarrera, filtroCiclo, filtroJornada, filtroMateria, esInvitado])
+
+  const limpiarFiltros = () => {
+    setFiltroCarrera(undefined)
+    setFiltroCiclo(undefined)
+    setFiltroJornada(undefined)
+    setFiltroMateria(undefined)
+  }
+
+  const construirCarrerasEditando = (persona: any): CarreraEditando[] =>
+    (persona.carreras ?? [])
       .filter((dc: any) => dc.carrera)
       .map((dc: any) => ({
         nombre: dc.carrera.nombre,
@@ -106,13 +155,15 @@ function GestionDocentes() {
         })),
       }))
 
-  const abrirEditar = (docente: any) => {
-    setEditando(docente)
-    setCarrerasEditando(construirCarrerasEditando(docente))
+  const abrirEditar = (persona: any) => {
+    setEditando(persona)
+    setCarrerasEditando(construirCarrerasEditando(persona))
     formEditar.setFieldsValue({
-      rfid: docente.rfid,
-      nombre: docente.nombre,
-      iniciales: docente.iniciales,
+      rfid: persona.rfid,
+      nombre: persona.nombre,
+      iniciales: persona.iniciales,
+      tipoDocumento: persona.tipoDocumento,
+      numeroDocumento: persona.numeroDocumento,
     })
     setModalEditar(true)
   }
@@ -151,20 +202,23 @@ function GestionDocentes() {
         rfid: valores.rfid,
         nombre: valores.nombre,
         iniciales: valores.iniciales,
+        ...(esInvitado ? { tipoDocumento: valores.tipoDocumento, numeroDocumento: valores.numeroDocumento } : {}),
       })
-      for (const carrera of carrerasEditando) {
-        await actualizarCiclosDocente(editando.id, carrera.nombre, carrera.ciclos.map(c => ({
-          numero: c.numero,
-          materias: c.materias.split(',').map((m: string) => m.trim()).filter(Boolean),
-        })))
+      if (!esInvitado) {
+        for (const carrera of carrerasEditando) {
+          await actualizarCiclosDocente(editando.id, carrera.nombre, carrera.ciclos.map(c => ({
+            numero: c.numero,
+            materias: c.materias.split(',').map((m: string) => m.trim()).filter(Boolean),
+          })))
+        }
       }
-      message.success('Docente actualizado')
+      message.success(`${esDocente ? 'Docente' : esInvitado ? 'Invitado' : 'Estudiante'} actualizado`)
       detenerVinculacion()
       setModalEditar(false)
-      cargarDocentes()
+      cargarPersonas()
     } catch (err: any) {
       if (err?.errorFields) return
-      message.error('Error al guardar — verifica que el RFID no esté en uso por otro docente')
+      message.error('Error al guardar — verifica que el RFID no esté en uso por otra persona')
     }
   }
 
@@ -185,66 +239,84 @@ function GestionDocentes() {
     try {
       await quitarCarreraDocente(editando.id, nombre)
       setCarrerasEditando(carrerasEditando.filter(c => c.nombre !== nombre))
-      message.success('Carrera removida del docente')
+      message.success('Carrera removida')
     } catch {
       message.error('Error al quitar la carrera')
     }
   }
 
-  const handleCrearDocente = async () => {
+  const handleCrearPersona = async () => {
     try {
       const valores = await formCrear.validateFields()
       await crearDocente({
         nombre: valores.nombre,
         iniciales: valores.iniciales,
         rfid: valores.rfid || undefined,
-        carreras: valores.carrera ? [{
+        email: valores.email || undefined,
+        tipoPersona,
+        tipoDocumento: esInvitado ? valores.tipoDocumento : undefined,
+        numeroDocumento: esInvitado ? valores.numeroDocumento : undefined,
+        carreras: (!esInvitado && valores.carrera) ? [{
           nombre: valores.carrera,
           ciclos: [{
             numero: parseInt(valores.ciclo) || 1,
             materias: valores.materias
               ? valores.materias.split(',').map((m: string) => m.trim()).filter(Boolean)
               : [],
+            jornada: valores.jornada || undefined,
           }],
         }] : undefined,
       })
-      message.success('Docente creado correctamente')
+      message.success(`${esDocente ? 'Docente' : esInvitado ? 'Invitado' : 'Estudiante'} creado correctamente`)
       setModalCrear(false)
       formCrear.resetFields()
-      cargarDocentes()
+      cargarPersonas()
     } catch (err: any) {
       if (err?.errorFields) return
-      message.error('Error al crear el docente')
+      message.error(`Error al crear el ${etiqueta}`)
     }
   }
 
   const columnas = [
     { title: 'Nombre', dataIndex: 'nombre', key: 'nombre' },
-    { title: 'Iniciales', dataIndex: 'iniciales', key: 'iniciales', width: 90 },
+    ...(esInvitado ? [] : esDocente ? [{ title: 'Iniciales', dataIndex: 'iniciales', key: 'iniciales', width: 90 }] : [
+      { title: 'Correo', dataIndex: 'email', key: 'email', render: (email: string) => email || <span style={{ color: '#94A3B8' }}>—</span> },
+    ]),
     {
       title: 'RFID', dataIndex: 'rfid', key: 'rfid',
       render: (rfid: string) => rfid
         ? <Tag color="cyan"><CreditCardOutlined style={{ marginRight: 4 }} />{rfid}</Tag>
         : <Tag color="default">Sin llavero</Tag>,
     },
-    {
-      title: 'Carrera', key: 'carrera',
+    ...(esInvitado ? [{
+      title: 'Documento', key: 'documento',
+      render: (_: any, d: any) => d.numeroDocumento
+        ? <Tag>{d.tipoDocumento === 'cedula' ? 'Cédula' : 'Pasaporte'}: {d.numeroDocumento}</Tag>
+        : <span style={{ color: '#94A3B8' }}>Sin documento</span>,
+    }] : [{
+      title: 'Carrera / Ciclo', key: 'carrera',
       render: (_: any, d: any) => {
-        const carreras = d.carreras?.map((dc: any) => dc.carrera?.nombre).filter(Boolean)
-        return carreras?.length > 0
-          ? carreras.map((c: string) => <Tag key={c}>{c}</Tag>)
-          : <span style={{ color: '#94A3B8' }}>Sin carrera</span>
+        const carreras = d.carreras ?? []
+        if (carreras.length === 0) return <span style={{ color: '#94A3B8' }}>Sin carrera</span>
+        return carreras.map((dc: any) => (
+          <div key={dc.carrera?.nombre} style={{ marginBottom: 2 }}>
+            <Tag>{dc.carrera?.nombre}</Tag>
+            {dc.ciclos?.map((c: any) => (
+              <Tag key={c.numero} color="blue">{c.numero}° {c.jornada ? `· ${c.jornada}` : ''}</Tag>
+            ))}
+          </div>
+        ))
       },
-    },
+    }]),
     { title: 'Préstamos activos', dataIndex: 'prestamosActivos', key: 'prestamosActivos', width: 140 },
     {
       title: 'Rol', dataIndex: 'rol', key: 'rol', width: 150,
-      render: (rol: string, docente: any) => modoAdminActivo ? (
+      render: (rol: string, persona: any) => modoAdminActivo ? (
         <Select
           value={rol}
           size="small"
           style={{ width: 130 }}
-          onChange={val => handleCambiarRol(docente.id, val)}
+          onChange={val => handleCambiarRol(persona.id, val)}
           options={[
             { value: 'usuario', label: 'Usuario' },
             { value: 'bibliotecario', label: 'Bibliotecario' },
@@ -260,15 +332,15 @@ function GestionDocentes() {
     },
     {
       title: 'Acciones', key: 'acciones', width: 160,
-      render: (_: any, docente: any) => modoAdminActivo ? (
+      render: (_: any, persona: any) => modoAdminActivo ? (
         <div style={{ display: 'flex', gap: 8 }}>
-          <Button size="small" icon={<EditOutlined />} onClick={() => abrirEditar(docente)}>
+          <Button size="small" icon={<EditOutlined />} onClick={() => abrirEditar(persona)}>
             Editar
           </Button>
           <Popconfirm
-            title="¿Eliminar este docente?"
+            title={`¿Eliminar este ${etiqueta}?`}
             description="Se moverá a la papelera — se puede restaurar después."
-            onConfirm={() => handleEliminar(docente.id)}
+            onConfirm={() => handleEliminar(persona.id)}
             okText="Sí, eliminar" cancelText="Cancelar"
           >
             <Button size="small" danger icon={<DeleteOutlined />} />
@@ -282,6 +354,9 @@ function GestionDocentes() {
     c => !carrerasEditando.some(ce => ce.nombre === c)
   )
 
+  const hayFiltrosActivos = filtroCarrera || filtroCiclo || filtroJornada || filtroMateria
+  const esEstudianteObligatorioEmail = tipoPersona === 'ESTUDIANTE'
+
   return (
     <div className="reportes-page">
       <div className="reportes-header">
@@ -291,9 +366,11 @@ function GestionDocentes() {
           </button>
           <h1 className="reportes-titulo">
             <TeamOutlined style={{ marginRight: 12, color: '#00796B' }} />
-            Gestión de Docentes
+            Gestión de {etiquetaPlural}
           </h1>
-          <p className="reportes-subtitulo">Administra los docentes registrados en el sistema</p>
+          <p className="reportes-subtitulo">
+            Administra los {etiquetaPlural.toLowerCase()} registrados · {personasFiltradas.length} de {personas.length}
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           {modoAdminActivo && (
@@ -307,15 +384,46 @@ function GestionDocentes() {
             size="large"
             onClick={() => { formCrear.resetFields(); setModalCrear(true) }}
           >
-            Nuevo docente
+            Nuevo {etiqueta}
           </Button>
         </div>
       </div>
 
+      {!esInvitado && (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, padding: '12px 16px', background: '#F5F7FA', borderRadius: 10, border: '1px solid #E2E8F0', alignItems: 'center' }}>
+          <FilterOutlined style={{ color: '#4A5568' }} />
+          <Select
+            placeholder="Carrera" allowClear style={{ width: 200 }}
+            value={filtroCarrera} onChange={setFiltroCarrera}
+            options={CARRERAS_DISPONIBLES.map(c => ({ value: c, label: c }))}
+            showSearch
+          />
+          <Select
+            placeholder="Ciclo" allowClear style={{ width: 120 }}
+            value={filtroCiclo} onChange={setFiltroCiclo}
+            options={OPCIONES_CICLO}
+          />
+          <Select
+            placeholder="Jornada" allowClear style={{ width: 140 }}
+            value={filtroJornada} onChange={setFiltroJornada}
+            options={OPCIONES_JORNADA}
+          />
+          <Select
+            placeholder="Materia" allowClear style={{ width: 200 }}
+            value={filtroMateria} onChange={setFiltroMateria}
+            options={materiasDisponibles.map(m => ({ value: m, label: m }))}
+            showSearch
+          />
+          {hayFiltrosActivos && (
+            <Button size="small" onClick={limpiarFiltros}>Limpiar filtros</Button>
+          )}
+        </div>
+      )}
+
       <div className="reporte-card">
         <Table
           columns={columnas}
-          dataSource={docentes}
+          dataSource={personasFiltradas}
           rowKey="id"
           loading={cargando}
           pagination={{ pageSize: 10 }}
@@ -324,7 +432,7 @@ function GestionDocentes() {
 
       {/* Modal editar */}
       <Modal
-        title="Editar docente"
+        title={`Editar ${etiqueta}`}
         open={modalEditar}
         onOk={handleGuardarEdicion}
         onCancel={() => { detenerVinculacion(); setModalEditar(false) }}
@@ -362,9 +470,19 @@ function GestionDocentes() {
               Esperando... acerca el llavero nuevo al lector RFID de la biblioteca.
             </div>
           )}
+          {esInvitado && (
+            <>
+              <Form.Item name="tipoDocumento" label="Tipo de documento">
+                <Select options={[{ value: 'cedula', label: 'Cédula' }, { value: 'pasaporte', label: 'Pasaporte' }]} />
+              </Form.Item>
+              <Form.Item name="numeroDocumento" label="Número de documento">
+                <Input />
+              </Form.Item>
+            </>
+          )}
         </Form>
 
-        {editando && (
+        {editando && !esInvitado && (
           <div style={{ marginTop: 8 }}>
             <Divider>Carreras y materias</Divider>
 
@@ -373,7 +491,7 @@ function GestionDocentes() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <strong style={{ color: '#1A2332' }}>{carrera.nombre}</strong>
                   <Popconfirm
-                    title="¿Quitar esta carrera del docente?"
+                    title="¿Quitar esta carrera?"
                     description="Se eliminarán sus ciclos y materias asociados."
                     onConfirm={() => handleQuitarCarrera(carrera.nombre)}
                     okText="Sí, quitar" cancelText="Cancelar"
@@ -450,49 +568,67 @@ function GestionDocentes() {
 
       {/* Modal crear */}
       <Modal
-        title="Nuevo docente"
+        title={`Nuevo ${etiqueta}`}
         open={modalCrear}
-        onOk={handleCrearDocente}
+        onOk={handleCrearPersona}
         onCancel={() => setModalCrear(false)}
-        okText="Crear docente"
+        okText={`Crear ${etiqueta}`}
         cancelText="Cancelar"
         width={560}
       >
         <Form form={formCrear} layout="vertical" style={{ marginTop: 20 }}>
           <Form.Item name="nombre" label="Nombre completo" rules={[{ required: true }]}>
-            <Input placeholder="Ej: Ing. Juan Pérez" />
+            <Input placeholder={esDocente ? 'Ej: Ing. Juan Pérez' : 'Ej: Juan Pérez'} />
           </Form.Item>
           <Form.Item name="iniciales" label="Iniciales" rules={[{ required: true }]}>
             <Input placeholder="Ej: JP" maxLength={3} />
           </Form.Item>
+          <Form.Item
+            name="email"
+            label={esDocente ? 'Correo (opcional)' : esInvitado ? 'Correo (opcional)' : 'Correo institucional'}
+            rules={esEstudianteObligatorioEmail ? [{ type: 'email', message: 'Correo inválido' }] : []}
+          >
+            <Input placeholder="nombre@sudamericano.edu.ec" />
+          </Form.Item>
           <Form.Item name="rfid" label="UID del llavero RFID">
             <Input placeholder="Ej: 6AE13E3E (opcional, se puede asignar después)" />
           </Form.Item>
-          <Divider style={{ margin: '8px 0 16px' }}>Carrera (opcional)</Divider>
-          <Form.Item name="carrera" label="Carrera">
-            <select
-              style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid #E2E8F0', color: '#1A2332' }}
-              onChange={e => formCrear.setFieldValue('carrera', e.target.value)}
-            >
-              <option value="">Sin carrera por ahora</option>
-              {CARRERAS_DISPONIBLES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </Form.Item>
-          <Form.Item name="ciclo" label="Número de ciclo">
-            <Select placeholder="Selecciona el ciclo" options={OPCIONES_CICLO} />
-          </Form.Item>
-          <Form.Item
-            name="materias"
-            label="Materias"
-            extra="Escribe las materias separadas por coma"
-          >
-            <Input.TextArea rows={2} placeholder="Ej: Programación, Base de Datos, Matemáticas" />
-          </Form.Item>
+          {esInvitado ? (
+            <>
+              <Divider style={{ margin: '8px 0 16px' }}>Documento</Divider>
+              <Form.Item name="tipoDocumento" label="Tipo de documento" rules={[{ required: true, message: 'Selecciona el tipo de documento' }]}>
+                <Select placeholder="Selecciona el tipo" options={[{ value: 'cedula', label: 'Cédula' }, { value: 'pasaporte', label: 'Pasaporte' }]} />
+              </Form.Item>
+              <Form.Item name="numeroDocumento" label="Número de documento" rules={[{ required: true, message: 'Ingresa el número' }]}>
+                <Input placeholder="Ej: 0102030405" />
+              </Form.Item>
+            </>
+          ) : (
+            <>
+              <Divider style={{ margin: '8px 0 16px' }}>Carrera (opcional)</Divider>
+              <Form.Item name="carrera" label="Carrera">
+                <Select placeholder="Selecciona la carrera" allowClear options={CARRERAS_DISPONIBLES.map(c => ({ value: c, label: c }))} />
+              </Form.Item>
+              <Form.Item name="ciclo" label="Número de ciclo">
+                <Select placeholder="Selecciona el ciclo" options={OPCIONES_CICLO} />
+              </Form.Item>
+              <Form.Item name="jornada" label="Jornada">
+                <Select placeholder="Selecciona la jornada" allowClear options={OPCIONES_JORNADA} />
+              </Form.Item>
+              <Form.Item
+                name="materias"
+                label="Materias"
+                extra="Escribe las materias separadas por coma"
+              >
+                <Input.TextArea rows={2} placeholder="Ej: Programación, Base de Datos, Matemáticas" />
+              </Form.Item>
+            </>
+          )}
         </Form>
       </Modal>
 
       <Modal
-        title="Papelera de docentes"
+        title={`Papelera de ${etiquetaPlural.toLowerCase()}`}
         open={modalPapelera}
         onCancel={() => setModalPapelera(false)}
         footer={null}
@@ -512,8 +648,8 @@ function GestionDocentes() {
               { title: 'Iniciales', dataIndex: 'iniciales', width: 90 },
               {
                 title: '', key: 'restaurar', width: 110,
-                render: (_: any, docente: any) => (
-                  <Button size="small" onClick={() => handleRestaurar(docente.id)}>Restaurar</Button>
+                render: (_: any, persona: any) => (
+                  <Button size="small" onClick={() => handleRestaurar(persona.id)}>Restaurar</Button>
                 ),
               },
             ]}
@@ -524,4 +660,4 @@ function GestionDocentes() {
   )
 }
 
-export default GestionDocentes
+export default GestionPersonas

@@ -11,7 +11,7 @@ import Devolucion from './pages/sistema/Devolucion'
 import Reportes from './pages/sistema/Reportes'
 import Gestion from './pages/sistema/Gestion'
 import GestionLibros from './pages/sistema/GestionLibros'
-import GestionDocentes from './pages/sistema/GestionDocentes'
+import GestionPersonas from './pages/sistema/GestionPersonas'
 import GestionStaff from './pages/sistema/GestionStaff'
 import ProtectedRoute from './components/ProtectedRoute'
 import { ModoProvider } from './context/ModoContext'
@@ -200,7 +200,13 @@ function App() {
               <ProtectedRoute><GestionLibros /></ProtectedRoute>
             } />
             <Route path="/sistema/gestion/docentes" element={
-              <ProtectedRoute><GestionDocentes /></ProtectedRoute>
+              <ProtectedRoute><GestionPersonas tipoPersona="DOCENTE" /></ProtectedRoute>
+            } />
+            <Route path="/sistema/gestion/estudiantes" element={
+              <ProtectedRoute><GestionPersonas tipoPersona="ESTUDIANTE" /></ProtectedRoute>
+            } />
+            <Route path="/sistema/gestion/invitados" element={
+              <ProtectedRoute><GestionPersonas tipoPersona="INVITADO" /></ProtectedRoute>
             } />
             <Route path="/sistema/gestion/staff" element={
               <ProtectedRoute><GestionStaff /></ProtectedRoute>
