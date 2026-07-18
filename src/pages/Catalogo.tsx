@@ -2,21 +2,10 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Input, Select, Table, Tag, Modal, Statistic, Button, Tooltip } from 'antd'
 import { ArrowLeftOutlined, SearchOutlined, ClockCircleOutlined } from '@ant-design/icons'
+
 import Logo from '../components/Logo'
 import { buscarLibros, getProgramas, registrarEventoPublico } from '../api/biblioteca'
-
-const nombreCorto: Record<string, string> = {
-  'TECNOLOGÍA SUPERIOR EN DESARROLLO DE SOFTWARE': 'Desarrollo de Software',
-  'TECNOLOGÍA SUPERIOR EN MARKETING': 'Marketing Digital y Negocios',
-  'TECNOLOGÍA SUPERIOR EN GASTRONOMÍA': 'Gastronomía',
-  'DISEÑO GRÁFICO CON NIVEL EQUIVALENTE A TECNOLOGÍA SUPERIOR': 'Diseño Gráfico',
-  'TECNOLOGÍA SUPERIOR EN TURISMO': 'Turismo',
-  'ENFERMERÍA': 'Enfermería',
-  'CONTABILIDAD Y ASESORIA TRIBUTARIA': 'Contabilidad y Asesoría Tributaria',
-  'REDES Y TELECOMUNICACIONES': 'Redes y Telecomunicaciones',
-  'ELECTRICIDAD': 'Electricidad',
-  'TECNOLOGÍA SUPERIOR EN ADMINISTRACIÓN DEL TALENTO HUMANO': 'Talento Humano',
-}
+import { nombreCortoPrograma } from '../utils/carreras'
 
 function Catalogo() {
   const navigate = useNavigate()
@@ -33,7 +22,7 @@ function Catalogo() {
     getProgramas().then((data: string[]) => {
       setProgramas(
         data
-          .map(p => ({ value: p, label: nombreCorto[p] || p }))
+          .map(p => ({ value: p, label: nombreCortoPrograma(p) }))
           .sort((a, b) => a.label.localeCompare(b.label)),
       )
     })
@@ -113,7 +102,7 @@ function Catalogo() {
       <section className="landing-section catalogo-section" style={{ marginTop: 32 }}>
         <div className="section-label">Catálogo</div>
         <h2 className="section-title">
-          {programa ? (nombreCorto[programa] || programa) : 'Explora todos los recursos'}
+          {programa ? (nombreCortoPrograma(programa)) : 'Explora todos los recursos'}
         </h2>
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
@@ -160,7 +149,7 @@ function Catalogo() {
         {libroSeleccionado && (
           <div style={{ paddingTop: 8 }}>
             <Tag color="cyan" style={{ marginBottom: 12 }}>
-              {nombreCorto[libroSeleccionado.programa] || libroSeleccionado.programa || libroSeleccionado.categoria}
+              {nombreCortoPrograma(libroSeleccionado.programa) || libroSeleccionado.categoria}
             </Tag>
             <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1A2332', margin: '0 0 4px' }}>
               {libroSeleccionado.titulo}

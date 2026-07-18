@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Form, Input, Button, Select, App, Table, Tag, Popconfirm, Divider } from 'antd'
 import { ArrowLeftOutlined, UserAddOutlined, DeleteOutlined, CrownOutlined } from '@ant-design/icons'
-import { crearCuentaStaff, getDocentes, eliminarDocente } from '../../api/biblioteca'
+import { crearCuentaStaff, getUsuarios, eliminarUsuario } from '../../api/biblioteca'
 
 function GestionStaff() {
   const navigate = useNavigate()
@@ -14,7 +14,7 @@ function GestionStaff() {
 
   const cargarCuentas = () => {
     setCargando(true)
-    getDocentes('STAFF').then(setCuentas).finally(() => setCargando(false))
+    getUsuarios('STAFF').then(setCuentas).finally(() => setCargando(false))
   }
 
   useEffect(() => { cargarCuentas() }, [])
@@ -37,7 +37,7 @@ function GestionStaff() {
 
   const handleDesactivar = async (id: number) => {
     try {
-      await eliminarDocente(id)
+      await eliminarUsuario(id)
       message.success('Cuenta desactivada')
       cargarCuentas()
     } catch {

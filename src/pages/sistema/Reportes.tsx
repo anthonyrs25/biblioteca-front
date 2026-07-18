@@ -9,7 +9,7 @@ import {
   SwapOutlined, CheckCircleOutlined, BookOutlined,
 } from '@ant-design/icons'
 import dayjs, { Dayjs } from 'dayjs'
-import { getStatsPeriodo, getComparativaAnual, getComparativaPorTipo, getLibros, getRegistrosMes, getTodosLosPrestamos, getDocentes, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios, getMateriasDisponibles, getCarreras } from '../../api/biblioteca'
+import { getStatsPeriodo, getComparativaAnual, getComparativaPorTipo, getLibros, getRegistrosMes, getTodosLosPrestamos, getUsuarios, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios, getMateriasDisponibles, getCarreras } from '../../api/biblioteca'
 
 type TabKey = 'resumen' | 'visitas' | 'prestamos' | 'analitica'
 
@@ -74,7 +74,7 @@ function Reportes() {
       getLibros(),
       getRegistrosMes(anio, mes),
       getTodosLosPrestamos(),
-      getDocentes(),
+      getUsuarios(),
     ]).then(([libros, regs, pres, docs]) => {
       setTotalLibros(libros.reduce((a: number, b: any) => a + b.totalEjemplares, 0))
       setDisponibles(libros.reduce((a: number, b: any) => a + b.disponibles, 0))

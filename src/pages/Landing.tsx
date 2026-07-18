@@ -19,19 +19,7 @@ import {
 } from '@ant-design/icons'
 import Logo from '../components/Logo'
 import { getLibros, getConteoPorPrograma, registrarEventoPublico } from '../api/biblioteca'
-
-const nombreCorto: Record<string, string> = {
-  'TECNOLOGÍA SUPERIOR EN DESARROLLO DE SOFTWARE': 'Desarrollo de Software',
-  'TECNOLOGÍA SUPERIOR EN MARKETING': 'Marketing Digital y Negocios',
-  'TECNOLOGÍA SUPERIOR EN GASTRONOMÍA': 'Gastronomía',
-  'DISEÑO GRÁFICO CON NIVEL EQUIVALENTE A TECNOLOGÍA SUPERIOR': 'Diseño Gráfico',
-  'TECNOLOGÍA SUPERIOR EN TURISMO': 'Turismo',
-  'ENFERMERÍA': 'Enfermería',
-  'CONTABILIDAD Y ASESORIA TRIBUTARIA': 'Contabilidad y Asesoría Tributaria',
-  'REDES Y TELECOMUNICACIONES': 'Redes y Telecomunicaciones',
-  'ELECTRICIDAD': 'Electricidad',
-  'TECNOLOGÍA SUPERIOR EN ADMINISTRACIÓN DEL TALENTO HUMANO': 'Talento Humano',
-}
+import { nombreCortoPrograma } from '../utils/carreras'
 
 function Landing() {
   const navigate = useNavigate()
@@ -59,7 +47,7 @@ function Landing() {
       const mapeado = data
         .filter(d => d.programa !== 'EDUCACIÓN CONTINUA')
         .map(d => ({
-          nombre: nombreCorto[d.programa] || d.programa,
+          nombre: nombreCortoPrograma(d.programa),
           programa: d.programa,
           ejemplares: d.total,
         }))

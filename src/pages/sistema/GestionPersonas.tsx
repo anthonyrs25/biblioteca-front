@@ -4,9 +4,9 @@ import { Table, Button, Modal, Form, Input, Select, App, Tag, Divider, Popconfir
 import { ArrowLeftOutlined, EditOutlined, TeamOutlined, CreditCardOutlined, PlusOutlined, WifiOutlined, DeleteOutlined, CrownOutlined, FilterOutlined } from '@ant-design/icons'
 import { useModo } from '../../context/ModoContext'
 import {
-  getDocentes, actualizarDocente, crearDocente, actualizarCiclosDocente,
-  agregarCarreraDocente, quitarCarreraDocente, getUltimoEscaneoDesde, getDocenteByRfid,
-  cambiarRolDocente, eliminarDocente, getPapeleraDocentes, restaurarDocente, getCarreras,
+  getUsuarios, actualizarUsuario, crearUsuario, actualizarCiclosUsuario,
+  agregarCarreraUsuario, quitarCarreraUsuario, getUltimoEscaneoDesde, getUsuarioByRfid,
+  cambiarRolUsuario, eliminarUsuario, getPapeleraUsuarios, restaurarUsuario, getCarreras,
 } from '../../api/biblioteca'
 
 const OPCIONES_CICLO = [1, 2, 3, 4].map(n => ({ value: n, label: `${n}° Ciclo` }))
@@ -65,12 +65,12 @@ function GestionPersonas({ tipoPersona }: Props) {
   const abrirPapelera = () => {
     setModalPapelera(true)
     setCargandoPapelera(true)
-    getPapeleraDocentes(tipoPersona).then(setPapelera).finally(() => setCargandoPapelera(false))
+    getPapeleraUsuarios(tipoPersona).then(setPapelera).finally(() => setCargandoPapelera(false))
   }
 
   const handleRestaurar = async (id: number) => {
     try {
-      await restaurarDocente(id)
+      await restaurarUsuario(id)
       message.success(`${esDocente ? 'Docente' : 'Estudiante'} restaurado`)
       setPapelera(papelera.filter(d => d.id !== id))
       cargarPersonas()
@@ -81,7 +81,7 @@ function GestionPersonas({ tipoPersona }: Props) {
 
   const handleEliminar = async (id: number) => {
     try {
-      await eliminarDocente(id)
+      await eliminarUsuario(id)
       message.success(`${esDocente ? 'Docente' : 'Estudiante'} eliminado (movido a la papelera)`)
       cargarPersonas()
     } catch {
@@ -91,7 +91,7 @@ function GestionPersonas({ tipoPersona }: Props) {
 
   const handleCambiarRol = async (id: number, rol: string) => {
     try {
-      await cambiarRolDocente(id, rol)
+      await cambiarRolUsuario(id, rol)
       message.success('Rol actualizado')
       cargarPersonas()
     } catch {
@@ -101,7 +101,7 @@ function GestionPersonas({ tipoPersona }: Props) {
 
   const cargarPersonas = () => {
     setCargando(true)
-    getDocentes(tipoPersona)
+    getUsuarios(tipoPersona)
       .then(setPersonas)
       .catch(() => message.error(`Error al cargar los ${etiquetaPlural.toLowerCase()}`))
       .finally(() => setCargando(false))
@@ -198,7 +198,7 @@ function GestionPersonas({ tipoPersona }: Props) {
         const scan = await getUltimoEscaneoDesde(desde)
         if (!scan) return
         detenerVinculacion()
-        const yaAsignado = await getDocenteByRfid(scan.uid).catch(() => null)
+        const yaAsignado = await getUsuarioByRfid(scan.uid).catch(() => null)
         if (yaAsignado && yaAsignado.id !== editando?.id) {
           message.warning(`Ese llavero ya está vinculado a ${yaAsignado.nombre}. Usa uno distinto.`)
           return
@@ -214,7 +214,7 @@ function GestionPersonas({ tipoPersona }: Props) {
   const handleGuardarEdicion = async () => {
     try {
       const valores = await formEditar.validateFields()
-      await actualizarDocente(editando.id, {
+      await actualizarUsuario(editando.id, {
         rfid: valores.rfid,
         nombre: valores.nombre,
         iniciales: valores.iniciales,
@@ -226,18 +226,18 @@ function GestionPersonas({ tipoPersona }: Props) {
         // Carreras que se quitaron desde que se abrió el modal
         for (const nombreOriginal of carrerasOriginales) {
           if (!nombresActuales.includes(nombreOriginal)) {
-            await quitarCarreraDocente(editando.id, nombreOriginal)
+            await quitarCarreraUsuario(editando.id, nombreOriginal)
           }
         }
         // Carreras nuevas que no existían al abrir el modal
         for (const nombreActual of nombresActuales) {
           if (!carrerasOriginales.includes(nombreActual)) {
-            await agregarCarreraDocente(editando.id, nombreActual)
+            await agregarCarreraUsuario(editando.id, nombreActual)
           }
         }
         // Ciclos y materias de todas las carreras que quedaron al final
         for (const carrera of carrerasEditando) {
-          await actualizarCiclosDocente(editando.id, carrera.nombre, carrera.ciclos.map(c => ({
+          await actualizarCiclosUsuario(editando.id, carrera.nombre, carrera.ciclos.map(c => ({
             numero: c.numero,
             materias: c.materias.split(',').map((m: string) => m.trim()).filter(Boolean),
             jornada: c.jornada,
@@ -272,7 +272,7 @@ function GestionPersonas({ tipoPersona }: Props) {
   const handleCrearPersona = async () => {
     try {
       const valores = await formCrear.validateFields()
-      await crearDocente({
+      await crearUsuario({
         nombre: valores.nombre,
         iniciales: valores.iniciales,
         rfid: valores.rfid || undefined,

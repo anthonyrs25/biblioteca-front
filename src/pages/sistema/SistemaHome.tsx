@@ -7,7 +7,7 @@ import {
   IdcardOutlined, ReadOutlined, UserAddOutlined, ArrowLeftOutlined, MailOutlined,
 } from '@ant-design/icons'
 import Logo from '../../components/Logo'
-import { getDocentes, getLibros, buscarPorEmail, buscarPorDocumento, crearDocente, getCarreras } from '../../api/biblioteca'
+import { getUsuarios, getLibros, buscarPorEmail, buscarPorDocumento, crearUsuario, getCarreras } from '../../api/biblioteca'
 import { useModo } from '../../context/ModoContext'
 
 const OPCIONES_CICLO = [1, 2, 3, 4].map(n => ({ value: n, label: `${n}° Ciclo` }))
@@ -65,8 +65,8 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
     getLibros().then(libros => {
       setTotalLibros(libros.reduce((a: number, b: any) => a + b.totalEjemplares, 0))
     })
-    getDocentes('DOCENTE').then(data => {
-      const soloDocentes = data.filter((d: any) => d.rol === 'usuario')
+getUsuarios('DOCENTE').then(data => {
+        const soloDocentes = data.filter((d: any) => d.rol === 'usuario')
       setDocentes(soloDocentes)
       setTotalDocentes(soloDocentes.length)
       const total = soloDocentes.reduce((a: number, d: any) => a + d.prestamosActivos, 0)
@@ -126,7 +126,7 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
 
     setCreandoEstudiante(true)
     try {
-      await crearDocente({
+      await crearUsuario({
         nombre: nombreEstudiante.trim(),
         email: emailEstudiante.trim(),
         rol: 'usuario',
@@ -171,7 +171,7 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
 
     setCreandoInvitado(true)
     try {
-      await crearDocente({
+      await crearUsuario({
         nombre: nombreInvitado.trim(),
         tipoDocumento: tipoDocInvitado,
         numeroDocumento: numeroDocInvitado.trim(),

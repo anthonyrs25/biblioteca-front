@@ -20,30 +20,30 @@ export const login = (email: string, password: string) =>
 export const crearCuentaStaff = (data: { nombre: string; email: string; password: string; rol: string }) =>
   api.post('/auth/crear-cuenta', data).then(r => r.data)
 
-// ───── DOCENTES / USUARIOS ─────
+// ───── USUARIOS (docentes, estudiantes, invitados y staff) ─────
 
-export const getDocenteByRfid = (uid: string) =>
-  api.get(`/docentes/rfid/${uid}`).then(r => r.data)
+export const getUsuarioByRfid = (uid: string) =>
+  api.get(`/usuarios/rfid/${uid}`).then(r => r.data)
 
 export const buscarPorEmail = (email: string) =>
-  api.get(`/docentes/email/${encodeURIComponent(email)}`).then(r => r.data)
+  api.get(`/usuarios/email/${encodeURIComponent(email)}`).then(r => r.data)
 
 export const buscarPorDocumento = (numero: string) =>
-  api.get(`/docentes/documento/${encodeURIComponent(numero)}`).then(r => r.data)
+  api.get(`/usuarios/documento/${encodeURIComponent(numero)}`).then(r => r.data)
 
-export const getDocentes = (tipoPersona?: string) =>
-  api.get('/docentes', { params: { tipoPersona } }).then(r => r.data)
+export const getUsuarios = (tipoPersona?: string) =>
+  api.get('/usuarios', { params: { tipoPersona } }).then(r => r.data)
 
 export const getCarreras = () =>
-  api.get('/docentes/carreras').then(r => r.data)
+  api.get('/usuarios/carreras').then(r => r.data)
 
-export const actualizarDocente = (id: number, data: Partial<{
+export const actualizarUsuario = (id: number, data: Partial<{
   rfid: string
   nombre: string
   iniciales: string
-}>) => api.patch(`/docentes/${id}`, data).then(r => r.data)
+}>) => api.patch(`/usuarios/${id}`, data).then(r => r.data)
 
-export const crearDocente = (data: {
+export const crearUsuario = (data: {
   nombre: string
   iniciales?: string
   rfid?: string
@@ -53,28 +53,28 @@ export const crearDocente = (data: {
   rol?: string
   tipoPersona?: string
   carreras?: { nombre: string; ciclos: { numero: number; materias: string[]; jornada?: string }[] }[]
-}) => api.post('/docentes', data).then(r => r.data)
+}) => api.post('/usuarios', data).then(r => r.data)
 
-export const actualizarCiclosDocente = (id: number, carrera: string, ciclos: { numero: number; materias: string[]; jornada?: string }[]) =>
-  api.patch(`/docentes/${id}/ciclos`, { carrera, ciclos }).then(r => r.data)
+export const actualizarCiclosUsuario = (id: number, carrera: string, ciclos: { numero: number; materias: string[]; jornada?: string }[]) =>
+  api.patch(`/usuarios/${id}/ciclos`, { carrera, ciclos }).then(r => r.data)
 
-export const agregarCarreraDocente = (id: number, carrera: string) =>
-  api.post(`/docentes/${id}/carreras`, { carrera }).then(r => r.data)
+export const agregarCarreraUsuario = (id: number, carrera: string) =>
+  api.post(`/usuarios/${id}/carreras`, { carrera }).then(r => r.data)
 
-export const quitarCarreraDocente = (id: number, carrera: string) =>
-  api.delete(`/docentes/${id}/carreras/${encodeURIComponent(carrera)}`).then(r => r.data)
+export const quitarCarreraUsuario = (id: number, carrera: string) =>
+  api.delete(`/usuarios/${id}/carreras/${encodeURIComponent(carrera)}`).then(r => r.data)
 
-export const cambiarRolDocente = (id: number, rol: string) =>
-  api.patch(`/docentes/${id}/rol`, { rol }).then(r => r.data)
+export const cambiarRolUsuario = (id: number, rol: string) =>
+  api.patch(`/usuarios/${id}/rol`, { rol }).then(r => r.data)
 
-export const eliminarDocente = (id: number) =>
-  api.delete(`/docentes/${id}`).then(r => r.data)
+export const eliminarUsuario = (id: number) =>
+  api.delete(`/usuarios/${id}`).then(r => r.data)
 
-export const getPapeleraDocentes = (tipoPersona?: string) =>
-  api.get('/docentes/papelera', { params: { tipoPersona } }).then(r => r.data)
+export const getPapeleraUsuarios = (tipoPersona?: string) =>
+  api.get('/usuarios/papelera', { params: { tipoPersona } }).then(r => r.data)
 
-export const restaurarDocente = (id: number) =>
-  api.patch(`/docentes/${id}/restaurar`).then(r => r.data)
+export const restaurarUsuario = (id: number) =>
+  api.patch(`/usuarios/${id}/restaurar`).then(r => r.data)
 
 // ───── VINCULACIÓN DE LLAVEROS RFID (sin tocar el firmware del ESP32) ─────
 
@@ -136,8 +136,8 @@ export const exportarTodosLibros = () =>
 
 // ───── PRÉSTAMOS ─────
 
-export const crearPrestamo = (docenteId: number, libroId: number, fechaDevolucionEsperada: string | undefined, tipoDocumento: string, numeroDocumento?: string) =>
-  api.post('/prestamos', { docenteId, libroId, fechaDevolucionEsperada, tipoDocumento, numeroDocumento }).then(r => r.data)
+export const crearPrestamo = (usuarioId: number, libroId: number, fechaDevolucionEsperada: string | undefined, tipoDocumento: string, numeroDocumento?: string) =>
+  api.post('/prestamos', { usuarioId, libroId, fechaDevolucionEsperada, tipoDocumento, numeroDocumento }).then(r => r.data)
 
 export const devolverPrestamo = (prestamoId: number) =>
   api.patch(`/prestamos/devolver/${prestamoId}`).then(r => r.data)
