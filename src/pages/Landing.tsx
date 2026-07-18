@@ -21,6 +21,12 @@ import Logo from '../components/Logo'
 import { getLibros, getConteoPorPrograma, registrarEventoPublico } from '../api/biblioteca'
 import { nombreCortoPrograma } from '../utils/carreras'
 
+// Si hay una sesión del staff abierta en este navegador (bibliotecario/admin),
+// no se registra el evento — así las analíticas solo cuentan visitantes reales.
+const trackear = (evento: any) => {
+  if (!localStorage.getItem('biblioteca_token')) registrarEventoPublico(evento)
+}
+
 function Landing() {
   const navigate = useNavigate()
   const [mostrarScrollTop, setMostrarScrollTop] = useState(false)
@@ -35,7 +41,7 @@ function Landing() {
   }, [])
 
   useEffect(() => {
-    registrarEventoPublico({ tipo: 'visita_pagina' })
+    trackear({ tipo: 'visita_pagina' })
   }, [])
 
   useEffect(() => {
@@ -193,12 +199,12 @@ function Landing() {
               role="button"
               tabIndex={0}
               onClick={() => {
-                registrarEventoPublico({ tipo: 'clic_carrera', programa: carrera.programa })
+                trackear({ tipo: 'clic_carrera', programa: carrera.programa })
                 navigate(`/catalogo?programa=${encodeURIComponent(carrera.programa)}`)
               }}
               onKeyDown={e => {
                 if (e.key === 'Enter') {
-                  registrarEventoPublico({ tipo: 'clic_carrera', programa: carrera.programa })
+                  trackear({ tipo: 'clic_carrera', programa: carrera.programa })
                   navigate(`/catalogo?programa=${encodeURIComponent(carrera.programa)}`)
                 }
               }}

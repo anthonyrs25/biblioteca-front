@@ -6,6 +6,12 @@ import Logo from '../components/Logo'
 import { buscarLibros, getProgramas, getCategorias, registrarEventoPublico } from '../api/biblioteca'
 import { nombreCortoPrograma } from '../utils/carreras'
 
+// Si hay una sesión del staff abierta en este navegador (bibliotecario/admin),
+// no se registra el evento — así las analíticas solo cuentan visitantes reales.
+const trackear = (evento: any) => {
+  if (!localStorage.getItem('biblioteca_token')) registrarEventoPublico(evento)
+}
+
 function Catalogo() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -41,7 +47,7 @@ function Catalogo() {
   }, [programa])
 
   useEffect(() => {
-    registrarEventoPublico({ tipo: 'visita_pagina', programa: programa || undefined })
+    trackear({ tipo: 'visita_pagina', programa: programa || undefined })
   }, [programa])
 
   useEffect(() => {
@@ -52,7 +58,7 @@ function Catalogo() {
         .then(data => {
           setLibros(data)
           if (texto.trim()) {
-            registrarEventoPublico({ tipo: 'busqueda', texto: texto.trim(), programa: programa || undefined })
+            trackear({ tipo: 'busqueda', texto: texto.trim(), programa: programa || undefined })
           }
         })
         .finally(() => setCargando(false))
@@ -71,7 +77,7 @@ function Catalogo() {
   // no en la lista completa (evita inflar "clics" con resultados que el usuario ni miró)
   const abrirDetalle = (libro: any) => {
     setLibroSeleccionado(libro)
-    registrarEventoPublico({ tipo: 'clic_libro', libroId: libro.id, programa: programa || undefined })
+    trackear({ tipo: 'clic_libro', libroId: libro.id, programa: programa || undefined })
   }
 
   const columnas = [
