@@ -12,7 +12,7 @@ interface Props {
 
 const tiposDocumento = [
   { value: 'cedula', label: 'Cédula de identidad' },
-  { value: 'carnet', label: 'Carné estudiantil' },
+  { value: 'carnet', label: 'Carné institucional' },
   { value: 'licencia', label: 'Licencia de conducir' },
   { value: 'otro', label: 'Otro documento' },
 ]

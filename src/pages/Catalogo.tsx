@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Input, Select, Table, Tag, Modal, Statistic, Button, Tooltip } from 'antd'
 import { ArrowLeftOutlined, SearchOutlined, ClockCircleOutlined } from '@ant-design/icons'
-
 import Logo from '../components/Logo'
-import { buscarLibros, getProgramas, registrarEventoPublico } from '../api/biblioteca'
+import { buscarLibros, getProgramas, getCategorias, registrarEventoPublico } from '../api/biblioteca'
 import { nombreCortoPrograma } from '../utils/carreras'
 
 function Catalogo() {
@@ -13,7 +12,10 @@ function Catalogo() {
   const programa = searchParams.get('programa') || ''
 
   const [texto, setTexto] = useState('')
+  const [categoria, setCategoria] = useState<string | undefined>()
+  const [ordenSel, setOrdenSel] = useState('titulo-asc')
   const [programas, setProgramas] = useState<{ value: string; label: string }[]>([])
+  const [categorias, setCategorias] = useState<{ value: string; label: string }[]>([])
   const [libros, setLibros] = useState<any[]>([])
   const [cargando, setCargando] = useState(false)
   const [libroSeleccionado, setLibroSeleccionado] = useState<any | null>(null)
@@ -26,6 +28,9 @@ function Catalogo() {
           .sort((a, b) => a.label.localeCompare(b.label)),
       )
     })
+    getCategorias().then((data: string[]) => {
+      setCategorias(data.map(c => ({ value: c, label: c })))
+    })
   }, [])
 
   useEffect(() => {
@@ -34,8 +39,9 @@ function Catalogo() {
 
   useEffect(() => {
     setCargando(true)
+    const [orden, direccion] = ordenSel.split('-')
     const t = setTimeout(() => {
-      buscarLibros(texto || undefined, programa || undefined)
+      buscarLibros(texto || undefined, programa || undefined, categoria || undefined, orden, direccion)
         .then(data => {
           setLibros(data)
           if (texto.trim()) {
@@ -45,7 +51,7 @@ function Catalogo() {
         .finally(() => setCargando(false))
     }, 300)
     return () => clearTimeout(t)
-  }, [texto, programa])
+  }, [texto, programa, categoria, ordenSel])
 
   const cambiarPrograma = (valor: string | undefined) => {
     const params = new URLSearchParams(searchParams)
@@ -64,7 +70,6 @@ function Catalogo() {
   const columnas = [
     {
       title: 'Título', dataIndex: 'titulo', key: 'titulo',
-      sorter: (a: any, b: any) => a.titulo.localeCompare(b.titulo),
       render: (_: string, libro: any) => (
         <div>
           <div style={{ fontWeight: 600, color: '#1A2332' }}>{libro.titulo}</div>
@@ -72,13 +77,9 @@ function Catalogo() {
         </div>
       ),
     },
-    {
-      title: 'Año', dataIndex: 'anio', key: 'anio', width: 90,
-      sorter: (a: any, b: any) => (a.anio || 0) - (b.anio || 0),
-    },
+    { title: 'Año', dataIndex: 'anio', key: 'anio', width: 90 },
     {
       title: 'Disponibilidad', dataIndex: 'disponibles', key: 'disponibles', width: 150,
-      sorter: (a: any, b: any) => a.disponibles - b.disponibles,
       render: (_: number, libro: any) => (
         <Tag color={libro.disponibles > 0 ? 'green' : 'default'}>
           {libro.disponibles} / {libro.totalEjemplares}
@@ -121,8 +122,35 @@ function Catalogo() {
             onChange={cambiarPrograma}
             allowClear
             size="large"
-            style={{ minWidth: 260 }}
+            style={{ minWidth: 220 }}
             options={programas}
+            showSearch
+            filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+          />
+          <Select
+            placeholder="Filtrar por categoría"
+            value={categoria}
+            onChange={setCategoria}
+            allowClear
+            size="large"
+            style={{ minWidth: 220 }}
+            options={categorias}
+            showSearch
+            filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+          />
+          <Select
+            value={ordenSel}
+            onChange={setOrdenSel}
+            size="large"
+            style={{ minWidth: 220 }}
+            options={[
+              { value: 'titulo-asc', label: 'Título (A-Z)' },
+              { value: 'titulo-desc', label: 'Título (Z-A)' },
+              { value: 'autor-asc', label: 'Autor (A-Z)' },
+              { value: 'autor-desc', label: 'Autor (Z-A)' },
+              { value: 'anio-desc', label: 'Año (más reciente)' },
+              { value: 'anio-asc', label: 'Año (más antiguo)' },
+            ]}
           />
         </div>
 

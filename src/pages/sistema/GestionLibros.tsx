@@ -3,15 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { Table, Button, Modal, Form, Input, InputNumber, App, Popconfirm, Tag, Select } from 'antd'
 import { ArrowLeftOutlined, PlusOutlined, EditOutlined, DeleteOutlined, BookOutlined, UploadOutlined, SearchOutlined, FileExcelOutlined, DownloadOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
-import { getLibros, crearLibro, actualizarLibro, eliminarLibro, buscarLibros, getProgramas, importarLoteLibros, exportarTodosLibros, getPapeleraLibros, restaurarLibro } from '../../api/biblioteca'
+import { getLibros, crearLibro, actualizarLibro, eliminarLibro, buscarLibros, getProgramas, getCategorias, importarLoteLibros, exportarTodosLibros, getPapeleraLibros, restaurarLibro } from '../../api/biblioteca'
 import { useModo } from '../../context/ModoContext'
-
-const limpiarPrograma = (nombre: string) =>
-  nombre
-    .replace(/^TECNOLOGÍA SUPERIOR EN ADMINISTRACIÓN DEL /i, 'ADMINISTRACIÓN DEL ')
-    .replace(/^TECNOLOGÍA SUPERIOR EN /i, '')
-    .replace(/DISEÑO GRÁFICO CON NIVEL EQUIVALENTE A TECNOLOGÍA SUPERIOR/i, 'DISEÑO GRÁFICO')
-    .trim()
+import { nombreCortoPrograma } from '../../utils/carreras'
 
 const normalizar = (s: string) =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim()
@@ -92,7 +86,9 @@ function GestionLibros() {
   const [form] = Form.useForm()
   const [busqueda, setBusqueda] = useState('')
   const [programa, setPrograma] = useState('')
+  const [categoria, setCategoria] = useState('')
   const [programas, setProgramas] = useState<{ value: string; label: string }[]>([])
+  const [categorias, setCategorias] = useState<{ value: string; label: string }[]>([])
   const [pageSize, setPageSize] = useState(25)
   const [importando, setImportando] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -119,8 +115,8 @@ function GestionLibros() {
 
   const cargarLibros = () => {
     setCargando(true)
-    const promesa = busqueda || programa
-      ? buscarLibros(busqueda || undefined, programa || undefined)
+    const promesa = busqueda || programa || categoria
+      ? buscarLibros(busqueda || undefined, programa || undefined, categoria || undefined)
       : getLibros()
     promesa
       .then(setLibros)
@@ -131,16 +127,19 @@ function GestionLibros() {
   useEffect(() => {
     getProgramas().then(data => {
       const opciones = data
-        .map((p: string) => ({ value: p, label: limpiarPrograma(p) }))
+        .map((p: string) => ({ value: p, label: nombreCortoPrograma(p) }))
         .sort((a: any, b: any) => a.label.localeCompare(b.label))
       setProgramas(opciones)
+    })
+    getCategorias().then((data: string[]) => {
+      setCategorias(data.map(c => ({ value: c, label: c })))
     })
   }, [])
 
   useEffect(() => {
   const t = setTimeout(() => { cargarLibros() }, 300)
   return () => clearTimeout(t)
-}, [busqueda, programa])
+}, [busqueda, programa, categoria])
 
   const abrirCrear = () => { setEditando(null); form.resetFields(); setModalAbierto(true) }
   const abrirEditar = (libro: any) => { setEditando(libro); form.setFieldsValue(libro); setModalAbierto(true) }
@@ -304,8 +303,10 @@ function GestionLibros() {
       if (resultado.actualizados > 0) partes.push(`${resultado.actualizados} actualizado${resultado.actualizados > 1 ? 's' : ''}`)
       message.success(`Importación completada: ${partes.join(', ') || 'sin cambios'}.`)
       cargarLibros()
-    } catch {
-      message.error('Error al leer o importar el archivo. Asegúrate de que sea un Excel válido (.xlsx o .xls).')
+    } catch (err: any) {
+      console.error('Error al importar Excel:', err)
+      const detalle = err?.response?.data?.message || err?.message || 'error desconocido'
+      message.error(`No se pudo completar la importación (${detalle}). Revisa la consola del navegador (F12) para más detalle.`, 6)
     } finally {
       setImportando(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -314,15 +315,29 @@ function GestionLibros() {
 
   const columnas = [
     { title: 'Código', dataIndex: 'codigo', key: 'codigo', width: 130 },
-    { title: 'Título', dataIndex: 'titulo', key: 'titulo' },
-    { title: 'Autor', dataIndex: 'autor', key: 'autor' },
+    {
+      title: 'Título', dataIndex: 'titulo', key: 'titulo',
+      sorter: (a: any, b: any) => a.titulo.localeCompare(b.titulo),
+    },
+    {
+      title: 'Autor', dataIndex: 'autor', key: 'autor',
+      sorter: (a: any, b: any) => a.autor.localeCompare(b.autor),
+    },
+    {
+      title: 'Año', dataIndex: 'anio', key: 'anio', width: 90,
+      sorter: (a: any, b: any) => (a.anio || 0) - (b.anio || 0),
+    },
     {
       title: 'Categoría', dataIndex: 'categoria', key: 'categoria',
       render: (cat: string) => <Tag color="cyan">{cat}</Tag>,
     },
-    { title: 'Total', dataIndex: 'totalEjemplares', key: 'total', width: 70 },
+    {
+      title: 'Total', dataIndex: 'totalEjemplares', key: 'total', width: 70,
+      sorter: (a: any, b: any) => a.totalEjemplares - b.totalEjemplares,
+    },
     {
       title: 'Disponibles', dataIndex: 'disponibles', key: 'disponibles', width: 100,
+      sorter: (a: any, b: any) => a.disponibles - b.disponibles,
       render: (val: number) => <Tag color={val > 0 ? 'green' : 'red'}>{val}</Tag>,
     },
     {
@@ -390,10 +405,22 @@ function GestionLibros() {
         <Select
           placeholder="Todos los programas"
           allowClear
-          style={{ minWidth: 260 }}
+          style={{ minWidth: 220 }}
           value={programa || undefined}
           onChange={val => setPrograma(val || '')}
           options={programas}
+          showSearch
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
+        />
+        <Select
+          placeholder="Todas las categorías"
+          allowClear
+          style={{ minWidth: 220 }}
+          value={categoria || undefined}
+          onChange={val => setCategoria(val || '')}
+          options={categorias}
           showSearch
           filterOption={(input, option) =>
             (option?.label ?? '').toLowerCase().includes(input.toLowerCase())

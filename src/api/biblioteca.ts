@@ -122,8 +122,11 @@ export const getPapeleraLibros = () =>
 export const restaurarLibro = (id: number) =>
   api.patch(`/libros/${id}/restaurar`).then(r => r.data)
 
-export const buscarLibros = (texto?: string, programa?: string) =>
-  api.get('/libros/buscar', { params: { texto, programa } }).then(r => r.data)
+export const buscarLibros = (texto?: string, programa?: string, categoria?: string, orden?: string, direccion?: string) =>
+  api.get('/libros/buscar', { params: { texto, programa, categoria, orden, direccion } }).then(r => r.data)
+
+export const getCategorias = () =>
+  api.get('/libros/categorias').then(r => r.data)
 
 export const getProgramas = () =>
   api.get('/libros/programas').then(r => r.data)
