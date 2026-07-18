@@ -14,6 +14,7 @@ export const NOMBRE_CORTO_PROGRAMA: Record<string, string> = {
   'REDES Y TELECOMUNICACIONES': 'Redes y Telecomunicaciones',
   'ELECTRICIDAD': 'Electricidad',
   'TECNOLOGÍA SUPERIOR EN ADMINISTRACIÓN DEL TALENTO HUMANO': 'Talento Humano',
+  'EDUCACIÓN CONTINUA': 'Educación Continua',
 }
 
 export const nombreCortoPrograma = (nombreLargo: string): string =>

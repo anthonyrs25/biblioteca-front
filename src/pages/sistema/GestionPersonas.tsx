@@ -302,7 +302,11 @@ function GestionPersonas({ tipoPersona }: Props) {
   }
 
   const columnas = [
-    { title: 'Nombre', dataIndex: 'nombre', key: 'nombre' },
+    {
+      title: 'Nombre', dataIndex: 'nombre', key: 'nombre',
+      sorter: (a: any, b: any) => a.nombre.localeCompare(b.nombre),
+      defaultSortOrder: 'ascend' as const,
+    },
     ...(esInvitado ? [] : esDocente ? [{ title: 'Iniciales', dataIndex: 'iniciales', key: 'iniciales', width: 90 }] : [
       { title: 'Correo', dataIndex: 'email', key: 'email', render: (email: string) => email || <span style={{ color: '#94A3B8' }}>—</span> },
     ]),

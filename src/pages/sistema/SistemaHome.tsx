@@ -27,7 +27,7 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
   const [pulso, setPulso] = useState(false)
   const [totalLibros, setTotalLibros] = useState(0)
   const [prestamosActivos, setPrestamosActivos] = useState(0)
-  const [totalDocentes, setTotalDocentes] = useState(0)
+  const [totalUsuarios, setTotalUsuarios] = useState(0)
   const [docentes, setDocentes] = useState<any[]>([])
   const [modalManual, setModalManual] = useState(false)
   const [busquedaManual, setBusquedaManual] = useState('')
@@ -65,11 +65,11 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
     getLibros().then(libros => {
       setTotalLibros(libros.reduce((a: number, b: any) => a + b.totalEjemplares, 0))
     })
-getUsuarios('DOCENTE').then(data => {
-        const soloDocentes = data.filter((d: any) => d.rol === 'usuario')
-      setDocentes(soloDocentes)
-      setTotalDocentes(soloDocentes.length)
-      const total = soloDocentes.reduce((a: number, d: any) => a + d.prestamosActivos, 0)
+    getUsuarios().then(data => {
+      const todos = data.filter((d: any) => d.rol === 'usuario')
+      setDocentes(todos.filter((d: any) => d.tipoPersona === 'DOCENTE'))
+      setTotalUsuarios(todos.length)
+      const total = todos.reduce((a: number, d: any) => a + d.prestamosActivos, 0)
       setPrestamosActivos(total)
     })
   }, [])
@@ -214,7 +214,7 @@ getUsuarios('DOCENTE').then(data => {
             Reportes
           </Button>
           <Button onClick={() => setModalManual(true)} icon={<TeamOutlined />} className="btn-reportes">
-            Registrar
+            Registro manual
           </Button>
           <Button onClick={() => navigate('/sistema/gestion')} icon={<SettingOutlined />} className="btn-reportes">
             Gestión
@@ -262,9 +262,9 @@ getUsuarios('DOCENTE').then(data => {
           <Statistic title="Préstamos activos" value={prestamosActivos}
             valueStyle={{ color: '#1A2332', fontSize: 32, fontWeight: 800 }} />
         </div>
-        <div className="stat-glass" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema/gestion/docentes')}>
+        <div className="stat-glass" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema/gestion')}>
           <SwapOutlined style={{ fontSize: 20, color: '#00796B', marginBottom: 8 }} />
-          <Statistic title="Docentes registrados" value={totalDocentes}
+          <Statistic title="Usuarios registrados" value={totalUsuarios}
             valueStyle={{ color: '#1A2332', fontSize: 32, fontWeight: 800 }} />
         </div>
       </div>

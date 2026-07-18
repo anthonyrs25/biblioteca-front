@@ -10,21 +10,9 @@ import {
 } from '@ant-design/icons'
 import dayjs, { Dayjs } from 'dayjs'
 import { getStatsPeriodo, getComparativaAnual, getComparativaPorTipo, getLibros, getRegistrosMes, getTodosLosPrestamos, getUsuarios, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios, getMateriasDisponibles, getCarreras } from '../../api/biblioteca'
+import { nombreCortoPrograma } from '../../utils/carreras'
 
 type TabKey = 'resumen' | 'visitas' | 'prestamos' | 'analitica'
-
-const nombreCorto: Record<string, string> = {
-  'TECNOLOGÍA SUPERIOR EN DESARROLLO DE SOFTWARE': 'Desarrollo de Software',
-  'TECNOLOGÍA SUPERIOR EN MARKETING': 'Marketing Digital y Negocios',
-  'TECNOLOGÍA SUPERIOR EN GASTRONOMÍA': 'Gastronomía',
-  'DISEÑO GRÁFICO CON NIVEL EQUIVALENTE A TECNOLOGÍA SUPERIOR': 'Diseño Gráfico',
-  'TECNOLOGÍA SUPERIOR EN TURISMO': 'Turismo',
-  'ENFERMERÍA': 'Enfermería',
-  'CONTABILIDAD Y ASESORIA TRIBUTARIA': 'Contabilidad y Asesoría Tributaria',
-  'REDES Y TELECOMUNICACIONES': 'Redes y Telecomunicaciones',
-  'ELECTRICIDAD': 'Electricidad',
-  'TECNOLOGÍA SUPERIOR EN ADMINISTRACIÓN DEL TALENTO HUMANO': 'Talento Humano',
-}
 
 const COLORES_GRAFICO = ['#00695C', '#00897B', '#26A69A', '#4DB6AC', '#80CBC4', '#B2DFDB', '#004D40', '#00796B']
 
@@ -223,9 +211,10 @@ function Reportes() {
         : <span style={{ color: '#94A3B8' }}>Libro eliminado</span>,
     },
     {
-      title: 'Clics desde el catálogo público', dataIndex: 'clics', key: 'clics',
+      title: 'Clics desde el catálogo público', dataIndex: 'clics', key: 'clics', width: 180, align: 'center' as const,
       sorter: (a: any, b: any) => a.clics - b.clics,
       defaultSortOrder: 'descend' as any,
+      render: (clics: number) => <Tag color="geekblue" style={{ fontSize: 13, padding: '2px 10px' }}>{clics}</Tag>,
     },
   ]
 
@@ -239,41 +228,45 @@ function Reportes() {
         </div>
       ),
     },
-    { title: 'Código', dataIndex: 'libro', key: 'codigo', render: (l: any) => <Tag>{l.codigo}</Tag> },
+    { title: 'Código', dataIndex: 'libro', key: 'codigo', width: 130, render: (l: any) => <Tag>{l.codigo}</Tag> },
     {
-      title: 'Préstamos totales', dataIndex: 'prestamos', key: 'prestamos',
+      title: 'Préstamos totales', dataIndex: 'prestamos', key: 'prestamos', width: 160, align: 'center' as const,
       sorter: (a: any, b: any) => a.prestamos - b.prestamos,
       defaultSortOrder: 'descend' as any,
+      render: (prestamos: number) => <Tag color="geekblue" style={{ fontSize: 13, padding: '2px 10px' }}>{prestamos}</Tag>,
     },
   ]
 
   const columnasRankingVisitas = [
     { title: 'Docente', dataIndex: 'usuario', key: 'usuario', render: (u: any) => u.nombre },
     {
-      title: 'Visitas registradas', dataIndex: 'visitas', key: 'visitas',
+      title: 'Visitas registradas', dataIndex: 'visitas', key: 'visitas', width: 180, align: 'center' as const,
       sorter: (a: any, b: any) => a.visitas - b.visitas,
       defaultSortOrder: 'descend' as any,
+      render: (visitas: number) => <Tag color="geekblue" style={{ fontSize: 13, padding: '2px 10px' }}>{visitas}</Tag>,
     },
   ]
 
   const columnasRankingPrestamosUsuarios = [
     { title: 'Docente', dataIndex: 'usuario', key: 'usuario', render: (u: any) => u.nombre },
     {
-      title: 'Préstamos totales', dataIndex: 'prestamos', key: 'prestamos',
+      title: 'Préstamos totales', dataIndex: 'prestamos', key: 'prestamos', width: 180, align: 'center' as const,
       sorter: (a: any, b: any) => a.prestamos - b.prestamos,
       defaultSortOrder: 'descend' as any,
+      render: (prestamos: number) => <Tag color="geekblue" style={{ fontSize: 13, padding: '2px 10px' }}>{prestamos}</Tag>,
     },
   ]
 
   const columnasRankingCarreras = [
     {
       title: 'Carrera', dataIndex: 'programa', key: 'programa',
-      render: (p: string) => nombreCorto[p] || p,
+      render: (p: string) => nombreCortoPrograma(p),
     },
     {
-      title: 'Clics desde el landing público', dataIndex: 'clics', key: 'clics',
+      title: 'Clics desde el landing público', dataIndex: 'clics', key: 'clics', width: 180, align: 'center' as const,
       sorter: (a: any, b: any) => a.clics - b.clics,
       defaultSortOrder: 'descend' as any,
+      render: (clics: number) => <Tag color="geekblue" style={{ fontSize: 13, padding: '2px 10px' }}>{clics}</Tag>,
     },
   ]
 
@@ -340,7 +333,7 @@ function Reportes() {
         items={[
           {
             key: 'resumen',
-            label: 'Resumen del mes',
+            label: 'Uso de la biblioteca',
             children: (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
@@ -575,7 +568,7 @@ function Reportes() {
           },
           {
             key: 'analitica',
-            label: 'Analítica',
+            label: 'Catálogo web y rankings',
             children: (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
@@ -650,7 +643,7 @@ function Reportes() {
                     </h3>
                     {rankingCarreras.length > 0 && (
                       <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={rankingCarreras.slice(0, 5).map((r: any) => ({ nombre: nombreCorto[r.programa] || r.programa, clics: r.clics }))}>
+                        <BarChart data={rankingCarreras.slice(0, 5).map((r: any) => ({ nombre: nombreCortoPrograma(r.programa), clics: r.clics }))}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} />
                           <XAxis dataKey="nombre" tick={{ fontSize: 11 }} interval={0} angle={-15} textAnchor="end" height={50} />
                           <YAxis allowDecimals={false} />
