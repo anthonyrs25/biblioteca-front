@@ -9,20 +9,7 @@ import {
   SwapOutlined, CheckCircleOutlined, BookOutlined,
 } from '@ant-design/icons'
 import dayjs, { Dayjs } from 'dayjs'
-import { getStatsPeriodo, getComparativaAnual, getComparativaPorTipo, getLibros, getRegistrosMes, getTodosLosPrestamos, getDocentes, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios, getMateriasDisponibles } from '../../api/biblioteca'
-
-const CARRERAS_DISPONIBLES = [
-  'Desarrollo de Software',
-  'Diseño Gráfico',
-  'Gastronomía',
-  'Marketing Digital y Negocios',
-  'Turismo',
-  'Enfermería',
-  'Contabilidad y Asesoría Tributaria',
-  'Redes y Telecomunicaciones',
-  'Electricidad',
-  'Talento Humano',
-]
+import { getStatsPeriodo, getComparativaAnual, getComparativaPorTipo, getLibros, getRegistrosMes, getTodosLosPrestamos, getDocentes, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios, getMateriasDisponibles, getCarreras } from '../../api/biblioteca'
 
 type TabKey = 'resumen' | 'visitas' | 'prestamos' | 'analitica'
 
@@ -71,9 +58,12 @@ function Reportes() {
   const [comparativaPorTipo, setComparativaPorTipo] = useState<any[]>([])
   const [tipoUsuarioResumen, setTipoUsuarioResumen] = useState<string | undefined>()
   const [tipoUsuarioAnalitica, setTipoUsuarioAnalitica] = useState<string | undefined>()
+  const [carreraAnalitica, setCarreraAnalitica] = useState<string | undefined>()
+  const [materiaAnalitica, setMateriaAnalitica] = useState<string | undefined>()
   const [carreraResumen, setCarreraResumen] = useState<string | undefined>()
   const [materiaResumen, setMateriaResumen] = useState<string | undefined>()
   const [materiasDisponibles, setMateriasDisponibles] = useState<string[]>([])
+  const [carrerasDisponibles, setCarrerasDisponibles] = useState<string[]>([])
 
   const mesNombre = dayjs(`${anio}-${String(mes).padStart(2, '0')}-01`)
     .toDate().toLocaleString('es-EC', { month: 'long', year: 'numeric' })
@@ -102,6 +92,7 @@ function Reportes() {
 
   useEffect(() => {
     getMateriasDisponibles().then(setMateriasDisponibles)
+    getCarreras().then((data: any[]) => setCarrerasDisponibles(data.map(c => c.nombre)))
   }, [])
 
   useEffect(() => {
@@ -115,7 +106,7 @@ function Reportes() {
       getTotalVisitasPublicas(periodoAnalitica),
       getLibrosMasBuscados(periodoAnalitica),
       getCarrerasMasClickeadas(periodoAnalitica),
-      getRankingVisitasUsuarios(periodoAnalitica, tipoUsuarioAnalitica),
+      getRankingVisitasUsuarios(periodoAnalitica, tipoUsuarioAnalitica, carreraAnalitica, materiaAnalitica),
       getRankingPrestamosLibros(periodoAnalitica),
       getRankingPrestamosUsuarios(periodoAnalitica, tipoUsuarioAnalitica),
     ]).then(([visitas, buscados, carreras, visitasUsuarios, librosPrestados, prestamosUsuarios]) => {
@@ -126,7 +117,7 @@ function Reportes() {
       setRankingLibros(librosPrestados)
       setRankingPrestamosUsuarios(prestamosUsuarios)
     }).finally(() => setCargandoAnalitica(false))
-  }, [periodoAnalitica, tipoUsuarioAnalitica])
+  }, [periodoAnalitica, tipoUsuarioAnalitica, carreraAnalitica, materiaAnalitica])
 
   const maxCarrera = stats?.porCarrera?.length > 0
     ? Math.max(...stats.porCarrera.map((c: any) => c.visitas))
@@ -392,7 +383,7 @@ function Reportes() {
                       placeholder="Todas"
                       showSearch
                       style={{ width: 200 }}
-                      options={CARRERAS_DISPONIBLES.map(c => ({ value: c, label: c }))}
+                      options={carrerasDisponibles.map(c => ({ value: c, label: c }))}
                     />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -616,6 +607,30 @@ function Reportes() {
                         { value: 'ESTUDIANTE', label: 'Estudiantes' },
                         { value: 'INVITADO', label: 'Invitados' },
                       ]}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Carrera (visitas):</span>
+                    <Select
+                      value={carreraAnalitica}
+                      onChange={setCarreraAnalitica}
+                      allowClear
+                      placeholder="Todas"
+                      showSearch
+                      style={{ width: 200 }}
+                      options={carrerasDisponibles.map(c => ({ value: c, label: c }))}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Materia (visitas):</span>
+                    <Select
+                      value={materiaAnalitica}
+                      onChange={setMateriaAnalitica}
+                      allowClear
+                      placeholder="Todas"
+                      showSearch
+                      style={{ width: 200 }}
+                      options={materiasDisponibles.map(m => ({ value: m, label: m }))}
                     />
                   </div>
                 </div>

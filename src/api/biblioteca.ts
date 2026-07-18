@@ -31,8 +31,11 @@ export const buscarPorEmail = (email: string) =>
 export const buscarPorDocumento = (numero: string) =>
   api.get(`/docentes/documento/${encodeURIComponent(numero)}`).then(r => r.data)
 
-export const getDocentes = () =>
-  api.get('/docentes').then(r => r.data)
+export const getDocentes = (tipoPersona?: string) =>
+  api.get('/docentes', { params: { tipoPersona } }).then(r => r.data)
+
+export const getCarreras = () =>
+  api.get('/docentes/carreras').then(r => r.data)
 
 export const actualizarDocente = (id: number, data: Partial<{
   rfid: string
@@ -67,8 +70,8 @@ export const cambiarRolDocente = (id: number, rol: string) =>
 export const eliminarDocente = (id: number) =>
   api.delete(`/docentes/${id}`).then(r => r.data)
 
-export const getPapeleraDocentes = () =>
-  api.get('/docentes/papelera').then(r => r.data)
+export const getPapeleraDocentes = (tipoPersona?: string) =>
+  api.get('/docentes/papelera', { params: { tipoPersona } }).then(r => r.data)
 
 export const restaurarDocente = (id: number) =>
   api.patch(`/docentes/${id}/restaurar`).then(r => r.data)
@@ -177,8 +180,8 @@ export const getMateriasDisponibles = () =>
 export const getRegistrosMes = (anio: number, mes: number) =>
   api.get(`/registros/mes/${anio}/${mes}`).then(r => r.data)
 
-export const getRankingVisitasUsuarios = (periodo?: string, tipoPersona?: string) =>
-  api.get('/registros/ranking-usuarios', { params: { periodo, tipoPersona } }).then(r => r.data)
+export const getRankingVisitasUsuarios = (periodo?: string, tipoPersona?: string, carrera?: string, materia?: string) =>
+  api.get('/registros/ranking-usuarios', { params: { periodo, tipoPersona, carrera, materia } }).then(r => r.data)
 
 // ───── EVENTOS PÚBLICOS (catálogo sin login) ─────
 

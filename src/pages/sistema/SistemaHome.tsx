@@ -7,21 +7,8 @@ import {
   IdcardOutlined, ReadOutlined, UserAddOutlined, ArrowLeftOutlined, MailOutlined,
 } from '@ant-design/icons'
 import Logo from '../../components/Logo'
-import { getDocentes, getLibros, buscarPorEmail, buscarPorDocumento, crearDocente } from '../../api/biblioteca'
+import { getDocentes, getLibros, buscarPorEmail, buscarPorDocumento, crearDocente, getCarreras } from '../../api/biblioteca'
 import { useModo } from '../../context/ModoContext'
-
-const CARRERAS_DISPONIBLES = [
-  'Desarrollo de Software',
-  'Diseño Gráfico',
-  'Gastronomía',
-  'Marketing Digital y Negocios',
-  'Turismo',
-  'Enfermería',
-  'Contabilidad y Asesoría Tributaria',
-  'Redes y Telecomunicaciones',
-  'Electricidad',
-  'Talento Humano',
-]
 
 const OPCIONES_CICLO = [1, 2, 3, 4].map(n => ({ value: n, label: `${n}° Ciclo` }))
 
@@ -57,6 +44,7 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
   const [jornadaEstudiante, setJornadaEstudiante] = useState<string | undefined>()
   const [materiasEstudiante, setMateriasEstudiante] = useState('')
   const [creandoEstudiante, setCreandoEstudiante] = useState(false)
+  const [carrerasDisponibles, setCarrerasDisponibles] = useState<string[]>([])
 
   // ── Invitado ──
   const [nombreInvitado, setNombreInvitado] = useState('')
@@ -64,6 +52,10 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
   const [numeroDocInvitado, setNumeroDocInvitado] = useState('')
   const [buscandoInvitado, setBuscandoInvitado] = useState(false)
   const [creandoInvitado, setCreandoInvitado] = useState(false)
+
+  useEffect(() => {
+    getCarreras().then((data: any[]) => setCarrerasDisponibles(data.map(c => c.nombre)))
+  }, [])
 
   useEffect(() => {
     const t = setInterval(() => setHora(new Date()), 1000)
@@ -79,8 +71,8 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
     getLibros().then(libros => {
       setTotalLibros(libros.reduce((a: number, b: any) => a + b.totalEjemplares, 0))
     })
-    getDocentes().then(data => {
-      const soloDocentes = data.filter((d: any) => d.rol === 'usuario' && d.tipoPersona === 'DOCENTE')
+    getDocentes('DOCENTE').then(data => {
+      const soloDocentes = data.filter((d: any) => d.rol === 'usuario')
       setDocentes(soloDocentes)
       setTotalDocentes(soloDocentes.length)
       const total = soloDocentes.reduce((a: number, d: any) => a + d.prestamosActivos, 0)
@@ -401,7 +393,7 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
                     placeholder="Selecciona la carrera"
                     value={carreraEstudiante}
                     onChange={setCarreraEstudiante}
-                    options={CARRERAS_DISPONIBLES.map(c => ({ value: c, label: c }))}
+                    options={carrerasDisponibles.map(c => ({ value: c, label: c }))}
                     style={{ width: '100%' }}
                     size="large"
                   />

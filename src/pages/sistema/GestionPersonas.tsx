@@ -6,21 +6,8 @@ import { useModo } from '../../context/ModoContext'
 import {
   getDocentes, actualizarDocente, crearDocente, actualizarCiclosDocente,
   agregarCarreraDocente, quitarCarreraDocente, getUltimoEscaneoDesde, getDocenteByRfid,
-  cambiarRolDocente, eliminarDocente, getPapeleraDocentes, restaurarDocente,
+  cambiarRolDocente, eliminarDocente, getPapeleraDocentes, restaurarDocente, getCarreras,
 } from '../../api/biblioteca'
-
-const CARRERAS_DISPONIBLES = [
-  'Desarrollo de Software',
-  'Diseño Gráfico',
-  'Gastronomía',
-  'Marketing Digital y Negocios',
-  'Turismo',
-  'Enfermería',
-  'Contabilidad y Asesoría Tributaria',
-  'Redes y Telecomunicaciones',
-  'Electricidad',
-  'Talento Humano',
-]
 
 const OPCIONES_CICLO = [1, 2, 3, 4].map(n => ({ value: n, label: `${n}° Ciclo` }))
 const OPCIONES_JORNADA = [
@@ -46,17 +33,21 @@ function GestionPersonas({ tipoPersona }: Props) {
   const etiquetaPlural = esDocente ? 'Docentes' : esInvitado ? 'Invitados' : 'Estudiantes'
 
   const [personas, setPersonas] = useState<any[]>([])
+  const [carrerasDisponibles, setCarrerasDisponibles] = useState<string[]>([])
   const [cargando, setCargando] = useState(false)
   const [modalEditar, setModalEditar] = useState(false)
   const [modalCrear, setModalCrear] = useState(false)
   const [editando, setEditando] = useState<any | null>(null)
   const [carrerasEditando, setCarrerasEditando] = useState<CarreraEditando[]>([])
+  const [carrerasOriginales, setCarrerasOriginales] = useState<string[]>([])
   const [carreraNuevaSel, setCarreraNuevaSel] = useState<string | undefined>()
   const [formEditar] = Form.useForm()
   const [formCrear] = Form.useForm()
   const [modalPapelera, setModalPapelera] = useState(false)
   const [papelera, setPapelera] = useState<any[]>([])
   const [cargandoPapelera, setCargandoPapelera] = useState(false)
+  const [pageSize, setPageSize] = useState(10)
+  const [busquedaTexto, setBusquedaTexto] = useState('')
 
   // ── Filtros ──
   const [filtroCarrera, setFiltroCarrera] = useState<string | undefined>()
@@ -67,10 +58,14 @@ function GestionPersonas({ tipoPersona }: Props) {
   const [vinculando, setVinculando] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  useEffect(() => {
+    getCarreras().then((data: any[]) => setCarrerasDisponibles(data.map(c => c.nombre)))
+  }, [])
+
   const abrirPapelera = () => {
     setModalPapelera(true)
     setCargandoPapelera(true)
-    getPapeleraDocentes().then(data => setPapelera(data.filter((d: any) => d.tipoPersona === tipoPersona))).finally(() => setCargandoPapelera(false))
+    getPapeleraDocentes(tipoPersona).then(setPapelera).finally(() => setCargandoPapelera(false))
   }
 
   const handleRestaurar = async (id: number) => {
@@ -106,8 +101,8 @@ function GestionPersonas({ tipoPersona }: Props) {
 
   const cargarPersonas = () => {
     setCargando(true)
-    getDocentes()
-      .then(data => setPersonas(data.filter((d: any) => d.tipoPersona === tipoPersona)))
+    getDocentes(tipoPersona)
+      .then(setPersonas)
       .catch(() => message.error(`Error al cargar los ${etiquetaPlural.toLowerCase()}`))
       .finally(() => setCargando(false))
   }
@@ -126,16 +121,34 @@ function GestionPersonas({ tipoPersona }: Props) {
   }, [personas])
 
   const personasFiltradas = useMemo(() => {
-    if (esInvitado) return personas
-    return personas.filter(p => {
+    let resultado = personas
+
+    if (busquedaTexto.trim()) {
+      const q = busquedaTexto.trim().toLowerCase()
+      resultado = resultado.filter(p => p.nombre?.toLowerCase().includes(q) || p.email?.toLowerCase().includes(q))
+    }
+
+    if (esInvitado) return resultado
+
+    if (!filtroCarrera && !filtroCiclo && !filtroJornada && !filtroMateria) return resultado
+
+    // Busca, para cada persona, si existe UNA combinación carrera+ciclo que
+    // cumpla TODOS los filtros activos a la vez — así "Carrera=Software" y
+    // "Materia=Cálculo" no se mezclan si esa materia en realidad pertenece
+    // a otra carrera distinta que también tiene esa persona.
+    return resultado.filter(p => {
       const carreras = p.carreras ?? []
-      if (filtroCarrera && !carreras.some((dc: any) => dc.carrera?.nombre === filtroCarrera)) return false
-      if (filtroCiclo && !carreras.some((dc: any) => dc.ciclos?.some((c: any) => c.numero === filtroCiclo))) return false
-      if (filtroJornada && !carreras.some((dc: any) => dc.ciclos?.some((c: any) => c.jornada === filtroJornada))) return false
-      if (filtroMateria && !carreras.some((dc: any) => dc.ciclos?.some((c: any) => c.materias?.some((m: any) => m.nombre === filtroMateria)))) return false
-      return true
+      return carreras.some((dc: any) => {
+        if (filtroCarrera && dc.carrera?.nombre !== filtroCarrera) return false
+        return (dc.ciclos ?? []).some((c: any) => {
+          if (filtroCiclo && c.numero !== filtroCiclo) return false
+          if (filtroJornada && c.jornada !== filtroJornada) return false
+          if (filtroMateria && !(c.materias ?? []).some((m: any) => m.nombre === filtroMateria)) return false
+          return true
+        })
+      })
     })
-  }, [personas, filtroCarrera, filtroCiclo, filtroJornada, filtroMateria, esInvitado])
+  }, [personas, filtroCarrera, filtroCiclo, filtroJornada, filtroMateria, esInvitado, busquedaTexto])
 
   const limpiarFiltros = () => {
     setFiltroCarrera(undefined)
@@ -157,7 +170,9 @@ function GestionPersonas({ tipoPersona }: Props) {
 
   const abrirEditar = (persona: any) => {
     setEditando(persona)
-    setCarrerasEditando(construirCarrerasEditando(persona))
+    const iniciales = construirCarrerasEditando(persona)
+    setCarrerasEditando(iniciales)
+    setCarrerasOriginales(iniciales.map(c => c.nombre))
     formEditar.setFieldsValue({
       rfid: persona.rfid,
       nombre: persona.nombre,
@@ -205,6 +220,21 @@ function GestionPersonas({ tipoPersona }: Props) {
         ...(esInvitado ? { tipoDocumento: valores.tipoDocumento, numeroDocumento: valores.numeroDocumento } : {}),
       })
       if (!esInvitado) {
+        const nombresActuales = carrerasEditando.map(c => c.nombre)
+
+        // Carreras que se quitaron desde que se abrió el modal
+        for (const nombreOriginal of carrerasOriginales) {
+          if (!nombresActuales.includes(nombreOriginal)) {
+            await quitarCarreraDocente(editando.id, nombreOriginal)
+          }
+        }
+        // Carreras nuevas que no existían al abrir el modal
+        for (const nombreActual of nombresActuales) {
+          if (!carrerasOriginales.includes(nombreActual)) {
+            await agregarCarreraDocente(editando.id, nombreActual)
+          }
+        }
+        // Ciclos y materias de todas las carreras que quedaron al final
         for (const carrera of carrerasEditando) {
           await actualizarCiclosDocente(editando.id, carrera.nombre, carrera.ciclos.map(c => ({
             numero: c.numero,
@@ -218,31 +248,23 @@ function GestionPersonas({ tipoPersona }: Props) {
       cargarPersonas()
     } catch (err: any) {
       if (err?.errorFields) return
-      message.error('Error al guardar — verifica que el RFID no esté en uso por otra persona')
+      message.error(err?.response?.data?.message || 'Error al guardar — verifica que el RFID no esté en uso por otra persona')
     }
   }
 
-  const handleAgregarCarrera = async () => {
-    if (!carreraNuevaSel || !editando) return
-    try {
-      const res = await agregarCarreraDocente(editando.id, carreraNuevaSel)
-      if (res.ok === false) { message.warning(res.mensaje); return }
-      setCarrerasEditando([...carrerasEditando, { nombre: carreraNuevaSel, ciclos: [{ numero: 2, materias: '' }] }])
-      setCarreraNuevaSel(undefined)
-    } catch {
-      message.error('Error al agregar la carrera')
-    }
+  // Agregar/quitar carrera ahora es solo un cambio local — se aplica de
+  // verdad recién al presionar "Guardar cambios", igual que los ciclos y
+  // materias. Antes se aplicaba al instante, lo cual era inconsistente:
+  // si cerrabas el modal sin guardar, la carrera ya había quedado asignada
+  // en la base de datos de todos modos.
+  const handleAgregarCarrera = () => {
+    if (!carreraNuevaSel) return
+    setCarrerasEditando([...carrerasEditando, { nombre: carreraNuevaSel, ciclos: [{ numero: 2, materias: '' }] }])
+    setCarreraNuevaSel(undefined)
   }
 
-  const handleQuitarCarrera = async (nombre: string) => {
-    if (!editando) return
-    try {
-      await quitarCarreraDocente(editando.id, nombre)
-      setCarrerasEditando(carrerasEditando.filter(c => c.nombre !== nombre))
-      message.success('Carrera removida')
-    } catch {
-      message.error('Error al quitar la carrera')
-    }
+  const handleQuitarCarrera = (nombre: string) => {
+    setCarrerasEditando(carrerasEditando.filter(c => c.nombre !== nombre))
   }
 
   const handleCrearPersona = async () => {
@@ -273,7 +295,7 @@ function GestionPersonas({ tipoPersona }: Props) {
       cargarPersonas()
     } catch (err: any) {
       if (err?.errorFields) return
-      message.error(`Error al crear el ${etiqueta}`)
+      message.error(err?.response?.data?.message || `Error al crear el ${etiqueta}`)
     }
   }
 
@@ -350,7 +372,7 @@ function GestionPersonas({ tipoPersona }: Props) {
     },
   ]
 
-  const carrerasNoAsignadas = CARRERAS_DISPONIBLES.filter(
+  const carrerasNoAsignadas = carrerasDisponibles.filter(
     c => !carrerasEditando.some(ce => ce.nombre === c)
   )
 
@@ -389,13 +411,37 @@ function GestionPersonas({ tipoPersona }: Props) {
         </div>
       </div>
 
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Input
+          placeholder={`Buscar ${etiqueta} por nombre${esDocente ? '' : ' o correo'}...`}
+          allowClear
+          style={{ maxWidth: 340 }}
+          value={busquedaTexto}
+          onChange={e => setBusquedaTexto(e.target.value)}
+        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+          <span style={{ fontSize: 13, color: '#4A5568' }}>Mostrar:</span>
+          <Select
+            value={pageSize}
+            onChange={setPageSize}
+            style={{ width: 100 }}
+            options={[
+              { value: 10, label: '10' },
+              { value: 25, label: '25' },
+              { value: 50, label: '50' },
+              { value: 9999, label: 'Todos' },
+            ]}
+          />
+        </div>
+      </div>
+
       {!esInvitado && (
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, padding: '12px 16px', background: '#F5F7FA', borderRadius: 10, border: '1px solid #E2E8F0', alignItems: 'center' }}>
           <FilterOutlined style={{ color: '#4A5568' }} />
           <Select
             placeholder="Carrera" allowClear style={{ width: 200 }}
             value={filtroCarrera} onChange={setFiltroCarrera}
-            options={CARRERAS_DISPONIBLES.map(c => ({ value: c, label: c }))}
+            options={carrerasDisponibles.map(c => ({ value: c, label: c }))}
             showSearch
           />
           <Select
@@ -426,7 +472,7 @@ function GestionPersonas({ tipoPersona }: Props) {
           dataSource={personasFiltradas}
           rowKey="id"
           loading={cargando}
-          pagination={{ pageSize: 10 }}
+          pagination={pageSize >= 9999 ? false : { pageSize, showTotal: (total) => `${total} ${etiquetaPlural.toLowerCase()}` }}
         />
       </div>
 
@@ -492,7 +538,7 @@ function GestionPersonas({ tipoPersona }: Props) {
                   <strong style={{ color: '#1A2332' }}>{carrera.nombre}</strong>
                   <Popconfirm
                     title="¿Quitar esta carrera?"
-                    description="Se eliminarán sus ciclos y materias asociados."
+                    description="Se aplicará recién al presionar 'Guardar cambios' — puedes cancelar antes de eso."
                     onConfirm={() => handleQuitarCarrera(carrera.nombre)}
                     okText="Sí, quitar" cancelText="Cancelar"
                   >
@@ -560,7 +606,7 @@ function GestionPersonas({ tipoPersona }: Props) {
               </div>
             )}
             <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 8 }}>
-              Escribe las materias separadas por coma. Los cambios de materias se aplican al guardar; agregar/quitar carrera se aplica al instante.
+              Escribe las materias separadas por coma. Todo se aplica junto al presionar "Guardar cambios".
             </div>
           </div>
         )}
@@ -607,7 +653,7 @@ function GestionPersonas({ tipoPersona }: Props) {
             <>
               <Divider style={{ margin: '8px 0 16px' }}>Carrera (opcional)</Divider>
               <Form.Item name="carrera" label="Carrera">
-                <Select placeholder="Selecciona la carrera" allowClear options={CARRERAS_DISPONIBLES.map(c => ({ value: c, label: c }))} />
+                <Select placeholder="Selecciona la carrera" allowClear options={carrerasDisponibles.map(c => ({ value: c, label: c }))} />
               </Form.Item>
               <Form.Item name="ciclo" label="Número de ciclo">
                 <Select placeholder="Selecciona el ciclo" options={OPCIONES_CICLO} />
