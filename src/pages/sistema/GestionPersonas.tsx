@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Table, Button, Modal, Form, Input, Select, App, Tag, Divider, Popconfirm } from 'antd'
+import { Table, Button, Modal, Form, Input, Select, App, Tag, Divider, Popconfirm, Segmented } from 'antd'
 import { ArrowLeftOutlined, EditOutlined, TeamOutlined, CreditCardOutlined, PlusOutlined, WifiOutlined, DeleteOutlined, CrownOutlined, FilterOutlined } from '@ant-design/icons'
 import { useModo } from '../../context/ModoContext'
 import {
@@ -16,21 +16,38 @@ const OPCIONES_JORNADA = [
   { value: 'nocturno', label: 'Nocturno' },
 ]
 
+type Tipo = 'DOCENTE' | 'ESTUDIANTE' | 'INVITADO'
+type Segmento = 'TODOS' | Tipo
+
+const ETIQUETAS: Record<Tipo, string> = {
+  DOCENTE: 'Docente',
+  ESTUDIANTE: 'Estudiante',
+  INVITADO: 'Invitado',
+}
+const etiquetaDe = (t: Tipo) => ETIQUETAS[t] || 'Usuario'
+
 type CicloEditando = { numero: number; materias: string; jornada?: string }
 type CarreraEditando = { nombre: string; ciclos: CicloEditando[] }
 
 interface Props {
-  tipoPersona: 'DOCENTE' | 'ESTUDIANTE' | 'INVITADO'
+  // Sin prop = página unificada de Usuarios (arranca en "Todos").
+  // Con prop = las rutas viejas (/docentes, /estudiantes, /invitados) siguen igual.
+  tipoPersona?: Tipo
 }
 
 function GestionPersonas({ tipoPersona }: Props) {
   const navigate = useNavigate()
   const { message } = App.useApp()
   const { modoAdminActivo } = useModo()
-  const esDocente = tipoPersona === 'DOCENTE'
-  const esInvitado = tipoPersona === 'INVITADO'
-  const etiqueta = esDocente ? 'docente' : esInvitado ? 'invitado' : 'estudiante'
-  const etiquetaPlural = esDocente ? 'Docentes' : esInvitado ? 'Invitados' : 'Estudiantes'
+
+  const [segmento, setSegmento] = useState<Segmento>(tipoPersona ?? 'TODOS')
+  useEffect(() => { setSegmento(tipoPersona ?? 'TODOS') }, [tipoPersona])
+
+  const esTodos = segmento === 'TODOS'
+  const esDocente = segmento === 'DOCENTE'
+  const esInvitado = segmento === 'INVITADO'
+  const etiqueta = esTodos ? 'usuario' : esDocente ? 'docente' : esInvitado ? 'invitado' : 'estudiante'
+  const etiquetaPlural = esTodos ? 'Usuarios' : esDocente ? 'Docentes' : esInvitado ? 'Invitados' : 'Estudiantes'
 
   const [personas, setPersonas] = useState<any[]>([])
   const [carrerasDisponibles, setCarrerasDisponibles] = useState<string[]>([])
@@ -49,6 +66,17 @@ function GestionPersonas({ tipoPersona }: Props) {
   const [pageSize, setPageSize] = useState(10)
   const [busquedaTexto, setBusquedaTexto] = useState('')
 
+  // El tipo de la persona que se está EDITANDO se deduce de su registro,
+  // no del segmento activo — así editar funciona también desde "Todos".
+  const tipoEditando: Tipo = (editando?.tipoPersona as Tipo) || (esTodos ? 'DOCENTE' : (segmento as Tipo))
+  const editarEsInvitado = tipoEditando === 'INVITADO'
+
+  // Tipo elegido en el formulario de creación (solo relevante en "Todos").
+  const tipoCrearSeleccionado = Form.useWatch('tipoPersonaNuevo', formCrear) as Tipo | undefined
+  const tipoCrear: Tipo | undefined = esTodos ? tipoCrearSeleccionado : (segmento as Tipo)
+  const crearEsInvitado = tipoCrear === 'INVITADO'
+  const crearEsEstudiante = tipoCrear === 'ESTUDIANTE'
+
   // ── Filtros ──
   const [filtroCarrera, setFiltroCarrera] = useState<string | undefined>()
   const [filtroCiclo, setFiltroCiclo] = useState<number | undefined>()
@@ -65,13 +93,15 @@ function GestionPersonas({ tipoPersona }: Props) {
   const abrirPapelera = () => {
     setModalPapelera(true)
     setCargandoPapelera(true)
-    getPapeleraUsuarios(tipoPersona).then(setPapelera).finally(() => setCargandoPapelera(false))
+    getPapeleraUsuarios(esTodos ? undefined : (segmento as Tipo))
+      .then(setPapelera)
+      .finally(() => setCargandoPapelera(false))
   }
 
   const handleRestaurar = async (id: number) => {
     try {
       await restaurarUsuario(id)
-      message.success(`${esDocente ? 'Docente' : 'Estudiante'} restaurado`)
+      message.success('Restaurado correctamente')
       setPapelera(papelera.filter(d => d.id !== id))
       cargarPersonas()
     } catch {
@@ -82,7 +112,7 @@ function GestionPersonas({ tipoPersona }: Props) {
   const handleEliminar = async (id: number) => {
     try {
       await eliminarUsuario(id)
-      message.success(`${esDocente ? 'Docente' : 'Estudiante'} eliminado (movido a la papelera)`)
+      message.success('Eliminado (movido a la papelera)')
       cargarPersonas()
     } catch {
       message.error('Error al eliminar')
@@ -101,13 +131,13 @@ function GestionPersonas({ tipoPersona }: Props) {
 
   const cargarPersonas = () => {
     setCargando(true)
-    getUsuarios(tipoPersona)
+    getUsuarios(esTodos ? undefined : (segmento as Tipo))
       .then(setPersonas)
       .catch(() => message.error(`Error al cargar los ${etiquetaPlural.toLowerCase()}`))
       .finally(() => setCargando(false))
   }
 
-  useEffect(() => { cargarPersonas() }, [tipoPersona])
+  useEffect(() => { cargarPersonas() }, [segmento])
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
   // Materias disponibles para el filtro: se calculan de las personas ya cargadas,
@@ -155,6 +185,12 @@ function GestionPersonas({ tipoPersona }: Props) {
     setFiltroCiclo(undefined)
     setFiltroJornada(undefined)
     setFiltroMateria(undefined)
+  }
+
+  const cambiarSegmento = (val: Segmento) => {
+    setSegmento(val)
+    limpiarFiltros()
+    setBusquedaTexto('')
   }
 
   const construirCarrerasEditando = (persona: any): CarreraEditando[] =>
@@ -218,9 +254,9 @@ function GestionPersonas({ tipoPersona }: Props) {
         rfid: valores.rfid,
         nombre: valores.nombre,
         iniciales: valores.iniciales,
-        ...(esInvitado ? { tipoDocumento: valores.tipoDocumento, numeroDocumento: valores.numeroDocumento } : {}),
+        ...(editarEsInvitado ? { tipoDocumento: valores.tipoDocumento, numeroDocumento: valores.numeroDocumento } : {}),
       })
-      if (!esInvitado) {
+      if (!editarEsInvitado) {
         const nombresActuales = carrerasEditando.map(c => c.nombre)
 
         // Carreras que se quitaron desde que se abrió el modal
@@ -244,7 +280,7 @@ function GestionPersonas({ tipoPersona }: Props) {
           })))
         }
       }
-      message.success(`${esDocente ? 'Docente' : esInvitado ? 'Invitado' : 'Estudiante'} actualizado`)
+      message.success(`${etiquetaDe(tipoEditando)} actualizado`)
       detenerVinculacion()
       setModalEditar(false)
       cargarPersonas()
@@ -272,15 +308,17 @@ function GestionPersonas({ tipoPersona }: Props) {
   const handleCrearPersona = async () => {
     try {
       const valores = await formCrear.validateFields()
+      const tipoFinal: Tipo = esTodos ? valores.tipoPersonaNuevo : (segmento as Tipo)
+      const tipoFinalEsInvitado = tipoFinal === 'INVITADO'
       await crearUsuario({
         nombre: valores.nombre,
         iniciales: valores.iniciales,
         rfid: valores.rfid || undefined,
         email: valores.email || undefined,
-        tipoPersona,
-        tipoDocumento: esInvitado ? valores.tipoDocumento : undefined,
-        numeroDocumento: esInvitado ? valores.numeroDocumento : undefined,
-        carreras: (!esInvitado && valores.carrera) ? [{
+        tipoPersona: tipoFinal,
+        tipoDocumento: tipoFinalEsInvitado ? valores.tipoDocumento : undefined,
+        numeroDocumento: tipoFinalEsInvitado ? valores.numeroDocumento : undefined,
+        carreras: (!tipoFinalEsInvitado && valores.carrera) ? [{
           nombre: valores.carrera,
           ciclos: [{
             numero: parseInt(valores.ciclo) || 1,
@@ -291,7 +329,7 @@ function GestionPersonas({ tipoPersona }: Props) {
           }],
         }] : undefined,
       })
-      message.success(`${esDocente ? 'Docente' : esInvitado ? 'Invitado' : 'Estudiante'} creado correctamente`)
+      message.success(`${etiquetaDe(tipoFinal)} creado correctamente`)
       setModalCrear(false)
       formCrear.resetFields()
       cargarPersonas()
@@ -301,13 +339,38 @@ function GestionPersonas({ tipoPersona }: Props) {
     }
   }
 
+  const renderCarreras = (d: any) => {
+    const carreras = d.carreras ?? []
+    if (carreras.length === 0) return <span style={{ color: '#94A3B8' }}>Sin carrera</span>
+    return carreras.map((dc: any) => (
+      <div key={dc.carrera?.nombre} style={{ marginBottom: 2 }}>
+        <Tag>{dc.carrera?.nombre}</Tag>
+        {dc.ciclos?.map((c: any) => (
+          <Tag key={c.numero} color="blue">{c.numero}° {c.jornada ? `· ${c.jornada}` : ''}</Tag>
+        ))}
+      </div>
+    ))
+  }
+
+  const renderDocumento = (d: any) => d.numeroDocumento
+    ? <Tag>{d.tipoDocumento === 'cedula' ? 'Cédula' : 'Pasaporte'}: {d.numeroDocumento}</Tag>
+    : <span style={{ color: '#94A3B8' }}>Sin documento</span>
+
   const columnas = [
     {
       title: 'Nombre', dataIndex: 'nombre', key: 'nombre',
       sorter: (a: any, b: any) => a.nombre.localeCompare(b.nombre),
       defaultSortOrder: 'ascend' as const,
     },
-    ...(esInvitado ? [] : esDocente ? [{ title: 'Iniciales', dataIndex: 'iniciales', key: 'iniciales', width: 90 }] : [
+    ...(esTodos ? [{
+      title: 'Tipo', dataIndex: 'tipoPersona', key: 'tipoPersona', width: 120,
+      render: (t: Tipo) => (
+        <Tag color={t === 'DOCENTE' ? 'geekblue' : t === 'ESTUDIANTE' ? 'green' : 'purple'}>
+          {etiquetaDe(t)}
+        </Tag>
+      ),
+    }] : []),
+    ...(esTodos || esInvitado ? [] : esDocente ? [{ title: 'Iniciales', dataIndex: 'iniciales', key: 'iniciales', width: 90 }] : [
       { title: 'Correo', dataIndex: 'email', key: 'email', render: (email: string) => email || <span style={{ color: '#94A3B8' }}>—</span> },
     ]),
     {
@@ -316,25 +379,15 @@ function GestionPersonas({ tipoPersona }: Props) {
         ? <Tag color="cyan"><CreditCardOutlined style={{ marginRight: 4 }} />{rfid}</Tag>
         : <Tag color="default">Sin llavero</Tag>,
     },
-    ...(esInvitado ? [{
+    ...(esTodos ? [{
+      title: 'Carrera / Documento', key: 'detalle',
+      render: (_: any, d: any) => d.tipoPersona === 'INVITADO' ? renderDocumento(d) : renderCarreras(d),
+    }] : esInvitado ? [{
       title: 'Documento', key: 'documento',
-      render: (_: any, d: any) => d.numeroDocumento
-        ? <Tag>{d.tipoDocumento === 'cedula' ? 'Cédula' : 'Pasaporte'}: {d.numeroDocumento}</Tag>
-        : <span style={{ color: '#94A3B8' }}>Sin documento</span>,
+      render: (_: any, d: any) => renderDocumento(d),
     }] : [{
       title: 'Carrera / Ciclo', key: 'carrera',
-      render: (_: any, d: any) => {
-        const carreras = d.carreras ?? []
-        if (carreras.length === 0) return <span style={{ color: '#94A3B8' }}>Sin carrera</span>
-        return carreras.map((dc: any) => (
-          <div key={dc.carrera?.nombre} style={{ marginBottom: 2 }}>
-            <Tag>{dc.carrera?.nombre}</Tag>
-            {dc.ciclos?.map((c: any) => (
-              <Tag key={c.numero} color="blue">{c.numero}° {c.jornada ? `· ${c.jornada}` : ''}</Tag>
-            ))}
-          </div>
-        ))
-      },
+      render: (_: any, d: any) => renderCarreras(d),
     }]),
     { title: 'Préstamos activos', dataIndex: 'prestamosActivos', key: 'prestamosActivos', width: 140 },
     {
@@ -366,7 +419,7 @@ function GestionPersonas({ tipoPersona }: Props) {
             Editar
           </Button>
           <Popconfirm
-            title={`¿Eliminar este ${etiqueta}?`}
+            title="¿Eliminar este registro?"
             description="Se moverá a la papelera — se puede restaurar después."
             onConfirm={() => handleEliminar(persona.id)}
             okText="Sí, eliminar" cancelText="Cancelar"
@@ -383,7 +436,6 @@ function GestionPersonas({ tipoPersona }: Props) {
   )
 
   const hayFiltrosActivos = filtroCarrera || filtroCiclo || filtroJornada || filtroMateria
-  const esEstudianteObligatorioEmail = tipoPersona === 'ESTUDIANTE'
 
   return (
     <div className="reportes-page">
@@ -417,9 +469,21 @@ function GestionPersonas({ tipoPersona }: Props) {
         </div>
       </div>
 
+      <Segmented
+        value={segmento}
+        onChange={val => cambiarSegmento(val as Segmento)}
+        options={[
+          { value: 'TODOS', label: 'Todos' },
+          { value: 'DOCENTE', label: 'Docentes' },
+          { value: 'ESTUDIANTE', label: 'Estudiantes' },
+          { value: 'INVITADO', label: 'Invitados' },
+        ]}
+        style={{ marginBottom: 16 }}
+      />
+
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <Input
-          placeholder={`Buscar ${etiqueta} por nombre${esDocente ? '' : ' o correo'}...`}
+          placeholder={`Buscar ${etiqueta} por nombre o correo...`}
           allowClear
           style={{ maxWidth: 340 }}
           value={busquedaTexto}
@@ -484,7 +548,7 @@ function GestionPersonas({ tipoPersona }: Props) {
 
       {/* Modal editar */}
       <Modal
-        title={`Editar ${etiqueta}`}
+        title={`Editar ${etiquetaDe(tipoEditando).toLowerCase()}`}
         open={modalEditar}
         onOk={handleGuardarEdicion}
         onCancel={() => { detenerVinculacion(); setModalEditar(false) }}
@@ -522,7 +586,7 @@ function GestionPersonas({ tipoPersona }: Props) {
               Esperando... acerca el llavero nuevo al lector RFID de la biblioteca.
             </div>
           )}
-          {esInvitado && (
+          {editarEsInvitado && (
             <>
               <Form.Item name="tipoDocumento" label="Tipo de documento">
                 <Select options={[{ value: 'cedula', label: 'Cédula' }, { value: 'pasaporte', label: 'Pasaporte' }]} />
@@ -534,7 +598,7 @@ function GestionPersonas({ tipoPersona }: Props) {
           )}
         </Form>
 
-        {editando && !esInvitado && (
+        {editando && !editarEsInvitado && (
           <div style={{ marginTop: 8 }}>
             <Divider>Carreras y materias</Divider>
 
@@ -636,56 +700,77 @@ function GestionPersonas({ tipoPersona }: Props) {
         open={modalCrear}
         onOk={handleCrearPersona}
         onCancel={() => setModalCrear(false)}
-        okText={`Crear ${etiqueta}`}
+        okText={tipoCrear ? `Crear ${etiquetaDe(tipoCrear).toLowerCase()}` : 'Crear'}
         cancelText="Cancelar"
         width={560}
       >
         <Form form={formCrear} layout="vertical" style={{ marginTop: 20 }}>
-          <Form.Item name="nombre" label="Nombre completo" rules={[{ required: true }]}>
-            <Input placeholder={esDocente ? 'Ej: Ing. Juan Pérez' : 'Ej: Juan Pérez'} />
-          </Form.Item>
-          <Form.Item name="iniciales" label="Iniciales" rules={[{ required: true }]}>
-            <Input placeholder="Ej: JP" maxLength={3} />
-          </Form.Item>
-          <Form.Item
-            name="email"
-            label={esDocente ? 'Correo (opcional)' : esInvitado ? 'Correo (opcional)' : 'Correo institucional'}
-            rules={esEstudianteObligatorioEmail ? [{ type: 'email', message: 'Correo inválido' }] : []}
-          >
-            <Input placeholder="nombre@sudamericano.edu.ec" />
-          </Form.Item>
-          <Form.Item name="rfid" label="UID del llavero RFID">
-            <Input placeholder="Ej: 6AE13E3E (opcional, se puede asignar después)" />
-          </Form.Item>
-          {esInvitado ? (
+          {esTodos && (
+            <Form.Item
+              name="tipoPersonaNuevo"
+              label="Tipo de usuario"
+              rules={[{ required: true, message: 'Selecciona el tipo de usuario' }]}
+            >
+              <Select
+                placeholder="Docente, estudiante o invitado"
+                options={[
+                  { value: 'DOCENTE', label: 'Docente' },
+                  { value: 'ESTUDIANTE', label: 'Estudiante' },
+                  { value: 'INVITADO', label: 'Invitado / externo' },
+                ]}
+              />
+            </Form.Item>
+          )}
+
+          {tipoCrear && (
             <>
-              <Divider style={{ margin: '8px 0 16px' }}>Documento</Divider>
-              <Form.Item name="tipoDocumento" label="Tipo de documento" rules={[{ required: true, message: 'Selecciona el tipo de documento' }]}>
-                <Select placeholder="Selecciona el tipo" options={[{ value: 'cedula', label: 'Cédula' }, { value: 'pasaporte', label: 'Pasaporte' }]} />
+              <Form.Item name="nombre" label="Nombre completo" rules={[{ required: true }]}>
+                <Input placeholder="Ej: Juan Pérez" />
               </Form.Item>
-              <Form.Item name="numeroDocumento" label="Número de documento" rules={[{ required: true, message: 'Ingresa el número' }]}>
-                <Input placeholder="Ej: 0102030405" />
-              </Form.Item>
-            </>
-          ) : (
-            <>
-              <Divider style={{ margin: '8px 0 16px' }}>Carrera (opcional)</Divider>
-              <Form.Item name="carrera" label="Carrera">
-                <Select placeholder="Selecciona la carrera" allowClear options={carrerasDisponibles.map(c => ({ value: c, label: c }))} />
-              </Form.Item>
-              <Form.Item name="ciclo" label="Número de ciclo">
-                <Select placeholder="Selecciona el ciclo" options={OPCIONES_CICLO} />
-              </Form.Item>
-              <Form.Item name="jornada" label="Jornada">
-                <Select placeholder="Selecciona la jornada" allowClear options={OPCIONES_JORNADA} />
+              <Form.Item name="iniciales" label="Iniciales" rules={[{ required: true }]}>
+                <Input placeholder="Ej: JP" maxLength={3} />
               </Form.Item>
               <Form.Item
-                name="materias"
-                label="Materias"
-                extra="Escribe las materias separadas por coma"
+                name="email"
+                label={crearEsEstudiante ? 'Correo institucional' : 'Correo (opcional)'}
+                rules={crearEsEstudiante ? [{ type: 'email', message: 'Correo inválido' }] : []}
               >
-                <Input.TextArea rows={2} placeholder="Ej: Programación, Base de Datos, Matemáticas" />
+                <Input placeholder="nombre@sudamericano.edu.ec" />
               </Form.Item>
+              <Form.Item name="rfid" label="UID del llavero RFID">
+                <Input placeholder="Ej: 6AE13E3E (opcional, se puede asignar después)" />
+              </Form.Item>
+              {crearEsInvitado ? (
+                <>
+                  <Divider style={{ margin: '8px 0 16px' }}>Documento</Divider>
+                  <Form.Item name="tipoDocumento" label="Tipo de documento" rules={[{ required: true, message: 'Selecciona el tipo de documento' }]}>
+                    <Select placeholder="Selecciona el tipo" options={[{ value: 'cedula', label: 'Cédula' }, { value: 'pasaporte', label: 'Pasaporte' }]} />
+                  </Form.Item>
+                  <Form.Item name="numeroDocumento" label="Número de documento" rules={[{ required: true, message: 'Ingresa el número' }]}>
+                    <Input placeholder="Ej: 0102030405" />
+                  </Form.Item>
+                </>
+              ) : (
+                <>
+                  <Divider style={{ margin: '8px 0 16px' }}>Carrera (opcional)</Divider>
+                  <Form.Item name="carrera" label="Carrera">
+                    <Select placeholder="Selecciona la carrera" allowClear options={carrerasDisponibles.map(c => ({ value: c, label: c }))} />
+                  </Form.Item>
+                  <Form.Item name="ciclo" label="Número de ciclo">
+                    <Select placeholder="Selecciona el ciclo" options={OPCIONES_CICLO} />
+                  </Form.Item>
+                  <Form.Item name="jornada" label="Jornada">
+                    <Select placeholder="Selecciona la jornada" allowClear options={OPCIONES_JORNADA} />
+                  </Form.Item>
+                  <Form.Item
+                    name="materias"
+                    label="Materias"
+                    extra="Escribe las materias separadas por coma"
+                  >
+                    <Input.TextArea rows={2} placeholder="Ej: Programación, Base de Datos, Matemáticas" />
+                  </Form.Item>
+                </>
+              )}
             </>
           )}
         </Form>

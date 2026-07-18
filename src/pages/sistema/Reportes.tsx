@@ -16,6 +16,12 @@ type TabKey = 'resumen' | 'visitas' | 'prestamos' | 'analitica'
 
 const COLORES_GRAFICO = ['#00695C', '#00897B', '#26A69A', '#4DB6AC', '#80CBC4', '#B2DFDB', '#004D40', '#00796B']
 
+const ETIQUETA_TIPO: Record<string, string> = {
+  DOCENTE: 'Docente',
+  ESTUDIANTE: 'Estudiante',
+  INVITADO: 'Invitado',
+}
+
 function Reportes() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -27,11 +33,11 @@ function Reportes() {
   const [disponibles, setDisponibles] = useState(0)
   const [registros, setRegistros] = useState<any[]>([])
   const [prestamos, setPrestamos] = useState<any[]>([])
-  const [docentes, setDocentes] = useState<any[]>([])
+  const [usuarios, setUsuarios] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [anio, setAnio] = useState(dayjs().year())
   const [mes, setMes] = useState(dayjs().month() + 1)
-  const [docenteFiltro, setDocenteFiltro] = useState<number | undefined>()
+  const [usuarioFiltro, setUsuarioFiltro] = useState<number | undefined>()
   const [soloActivos, setSoloActivos] = useState(false)
   const [visitasPublicas, setVisitasPublicas] = useState(0)
   const [librosMasBuscados, setLibrosMasBuscados] = useState<any[]>([])
@@ -63,12 +69,18 @@ function Reportes() {
       getRegistrosMes(anio, mes),
       getTodosLosPrestamos(),
       getUsuarios(),
-    ]).then(([libros, regs, pres, docs]) => {
+    ]).then(([libros, regs, pres, usrs]) => {
       setTotalLibros(libros.reduce((a: number, b: any) => a + b.totalEjemplares, 0))
       setDisponibles(libros.reduce((a: number, b: any) => a + b.disponibles, 0))
       setRegistros(regs)
       setPrestamos(pres)
-      setDocentes(docs.filter((d: any) => d.rol === 'usuario'))
+      // El filtro se construye desde la tabla de usuarios (no desde los préstamos):
+      // cada persona aparece una sola vez, ordenada alfabéticamente.
+      setUsuarios(
+        usrs
+          .filter((u: any) => u.rol === 'usuario')
+          .sort((a: any, b: any) => (a.nombre || '').localeCompare(b.nombre || ''))
+      )
     }).finally(() => setLoading(false))
   }
 
@@ -111,14 +123,24 @@ function Reportes() {
     ? Math.max(...stats.porCarrera.map((c: any) => c.visitas))
     : 1
 
+  // ¿La fecha cae dentro del mes seleccionado en el filtro?
+  const enMesSeleccionado = (f: string) => {
+    if (!f) return false
+    const d = new Date(f)
+    return d.getFullYear() === anio && d.getMonth() + 1 === mes
+  }
+
   const registrosFiltrados = registros.filter(r =>
-    !docenteFiltro || r.usuario?.id === docenteFiltro
+    !usuarioFiltro || r.usuario?.id === usuarioFiltro
   )
 
   const prestamosFiltrados = prestamos.filter(p => {
-    const porDocente = !docenteFiltro || p.usuario?.id === docenteFiltro
+    // Antes el selector de Mes no afectaba a los préstamos (mostraba todo el
+    // historial aunque el encabezado dijera "junio 2026"). Ahora sí se respeta.
+    const porMes = enMesSeleccionado(p.fechaPrestamo)
+    const porUsuario = !usuarioFiltro || p.usuario?.id === usuarioFiltro
     const porEstado = !soloActivos || p.activo
-    return porDocente && porEstado
+    return porMes && porUsuario && porEstado
   })
 
   const columnasRegistros = [
@@ -154,7 +176,19 @@ function Reportes() {
       sorter: (a: any, b: any) => new Date(b.fechaPrestamo).getTime() - new Date(a.fechaPrestamo).getTime(),
       defaultSortOrder: 'ascend' as any,
     },
-    { title: 'Docente', dataIndex: 'usuario', key: 'usuario', render: (u: any) => u?.nombre || '—' },
+    {
+      title: 'Usuario', dataIndex: 'usuario', key: 'usuario',
+      render: (u: any) => u
+        ? (
+          <div>
+            <div>{u.nombre}</div>
+            {u.tipoPersona && (
+              <div style={{ fontSize: 11, color: '#94A3B8' }}>{ETIQUETA_TIPO[u.tipoPersona] || u.tipoPersona}</div>
+            )}
+          </div>
+        )
+        : '—',
+    },
     {
       title: 'Libro', dataIndex: 'libro', key: 'libro',
       render: (l: any) => (
@@ -238,7 +272,7 @@ function Reportes() {
   ]
 
   const columnasRankingVisitas = [
-    { title: 'Docente', dataIndex: 'usuario', key: 'usuario', render: (u: any) => u.nombre },
+    { title: 'Usuario', dataIndex: 'usuario', key: 'usuario', render: (u: any) => u.nombre },
     {
       title: 'Visitas registradas', dataIndex: 'visitas', key: 'visitas', width: 180, align: 'center' as const,
       sorter: (a: any, b: any) => a.visitas - b.visitas,
@@ -248,7 +282,7 @@ function Reportes() {
   ]
 
   const columnasRankingPrestamosUsuarios = [
-    { title: 'Docente', dataIndex: 'usuario', key: 'usuario', render: (u: any) => u.nombre },
+    { title: 'Usuario', dataIndex: 'usuario', key: 'usuario', render: (u: any) => u.nombre },
     {
       title: 'Préstamos totales', dataIndex: 'prestamos', key: 'prestamos', width: 180, align: 'center' as const,
       sorter: (a: any, b: any) => a.prestamos - b.prestamos,
@@ -285,14 +319,21 @@ function Reportes() {
         />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Docente:</span>
+        <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Usuario:</span>
         <Select
-          placeholder="Todos los docentes"
+          placeholder="Todos los usuarios"
           allowClear
+          showSearch
+          optionFilterProp="label"
           style={{ minWidth: 220 }}
-          value={docenteFiltro}
-          onChange={setDocenteFiltro}
-          options={docentes.map((d: any) => ({ value: d.id, label: d.nombre }))}
+          value={usuarioFiltro}
+          onChange={setUsuarioFiltro}
+          options={usuarios.map((u: any) => ({
+            value: u.id,
+            label: u.tipoPersona && u.tipoPersona !== 'DOCENTE'
+              ? `${u.nombre} (${ETIQUETA_TIPO[u.tipoPersona] || u.tipoPersona})`
+              : u.nombre,
+          }))}
         />
       </div>
       {activeTab === 'prestamos' && (
@@ -643,7 +684,7 @@ function Reportes() {
                     </h3>
                     {rankingCarreras.length > 0 && (
                       <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={rankingCarreras.slice(0, 5).map((r: any) => ({ nombre: nombreCortoPrograma(r.programa), clics: r.clics }))}>
+                        <BarChart data={[...rankingCarreras].sort((a: any, b: any) => b.clics - a.clics).slice(0, 5).map((r: any) => ({ nombre: nombreCortoPrograma(r.programa), clics: r.clics }))}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} />
                           <XAxis dataKey="nombre" tick={{ fontSize: 11 }} interval={0} angle={-15} textAnchor="end" height={50} />
                           <YAxis allowDecimals={false} />
@@ -668,7 +709,7 @@ function Reportes() {
                     </h3>
                     {librosMasBuscados.length > 0 && (
                       <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={librosMasBuscados.slice(0, 5).map((r: any) => ({ nombre: r.libro ? (r.libro.titulo.length > 18 ? r.libro.titulo.slice(0, 18) + '…' : r.libro.titulo) : 'Eliminado', clics: r.clics }))}>
+                        <BarChart data={[...librosMasBuscados].sort((a: any, b: any) => b.clics - a.clics).slice(0, 5).map((r: any) => ({ nombre: r.libro ? (r.libro.titulo.length > 18 ? r.libro.titulo.slice(0, 18) + '…' : r.libro.titulo) : 'Eliminado', clics: r.clics }))}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} />
                           <XAxis dataKey="nombre" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={50} />
                           <YAxis allowDecimals={false} />
@@ -696,7 +737,7 @@ function Reportes() {
                     </h3>
                     {rankingLibros.length > 0 && (
                       <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={rankingLibros.slice(0, 5).map((r: any) => ({ nombre: r.libro.titulo.length > 18 ? r.libro.titulo.slice(0, 18) + '…' : r.libro.titulo, prestamos: r.prestamos }))}>
+                        <BarChart data={[...rankingLibros].sort((a: any, b: any) => b.prestamos - a.prestamos).slice(0, 5).map((r: any) => ({ nombre: r.libro.titulo.length > 18 ? r.libro.titulo.slice(0, 18) + '…' : r.libro.titulo, prestamos: r.prestamos }))}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} />
                           <XAxis dataKey="nombre" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={50} />
                           <YAxis allowDecimals={false} />
@@ -717,7 +758,7 @@ function Reportes() {
                   <div className="reporte-card">
                     <h3 className="reporte-card-titulo">
                       <TeamOutlined style={{ marginRight: 8 }} />
-                      Docentes por número de visitas
+                      Usuarios por número de visitas
                     </h3>
                     {rankingVisitas.length > 0 && (
                       <ResponsiveContainer width="100%" height={200}>
@@ -745,7 +786,7 @@ function Reportes() {
                   <div className="reporte-card">
                     <h3 className="reporte-card-titulo">
                       <TeamOutlined style={{ marginRight: 8 }} />
-                      Docentes por número de préstamos
+                      Usuarios por número de préstamos
                     </h3>
                     {rankingPrestamosUsuarios.length > 0 && (
                       <ResponsiveContainer width="100%" height={200}>

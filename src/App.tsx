@@ -201,6 +201,9 @@ function App() {
               <Route path="/sistema/gestion/libros" element={
                 <ProtectedRoute><GestionLibros /></ProtectedRoute>
               } />
+              <Route path="/sistema/gestion/usuarios" element={
+                <ProtectedRoute><GestionPersonas /></ProtectedRoute>
+              } />
               <Route path="/sistema/gestion/docentes" element={
                 <ProtectedRoute><GestionPersonas tipoPersona="DOCENTE" /></ProtectedRoute>
               } />

@@ -262,8 +262,8 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
           <Statistic title="Préstamos activos" value={prestamosActivos}
             valueStyle={{ color: '#1A2332', fontSize: 32, fontWeight: 800 }} />
         </div>
-        <div className="stat-glass" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema/gestion')}>
-          <SwapOutlined style={{ fontSize: 20, color: '#00796B', marginBottom: 8 }} />
+        <div className="stat-glass" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema/gestion/usuarios')}>
+          <TeamOutlined style={{ fontSize: 20, color: '#00796B', marginBottom: 8 }} />
           <Statistic title="Usuarios registrados" value={totalUsuarios}
             valueStyle={{ color: '#1A2332', fontSize: 32, fontWeight: 800 }} />
         </div>
