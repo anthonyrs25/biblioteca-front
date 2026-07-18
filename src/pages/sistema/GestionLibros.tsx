@@ -16,16 +16,45 @@ const limpiarPrograma = (nombre: string) =>
 const normalizar = (s: string) =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim()
 
-// Alias posibles por campo — cubre tanto el Excel institucional real
-// (CÓDIGO DE BIBLIOTECA, NOMBRE, AUTOR(ES)) como una plantilla simple (CODIGO, TITULO, AUTOR)
+// Alias por campo, tal como aparecen en el Excel institucional real
+// (2_INVENTARIO_BIBLIOTECA_DANIEL_PERAZZO_2026.xlsx, 45 columnas verificadas).
 const ALIAS_CODIGO = ['CODIGO DE BIBLIOTECA', 'CODIGO INTERNO', 'CODIGO']
 const ALIAS_TITULO = ['NOMBRE', 'TITULO']
-const ALIAS_AUTOR = ['AUTOR']
+const ALIAS_AUTOR = ['AUTOR(ES)', 'AUTOR']
 const ALIAS_ANIO = ['ANO DE PUBLICACION', 'ANO', 'YEAR']
-const ALIAS_CATEGORIA = ['PROGRAMAS', 'AREA DE CONOCIMIENTO', 'CATEGORIA']
+// Categoría: prioriza el área de conocimiento (más corta, más usable como tag);
+// PROGRAMAS se guarda aparte, en su propio campo dedicado (ver ALIAS_PROGRAMA).
+const ALIAS_CATEGORIA = ['AREA DE CONOCIMIENTO', 'PROGRAMAS', 'CATEGORIA']
+const ALIAS_PROGRAMA = ['PROGRAMAS']
 const ALIAS_TOTAL = ['TOTAL', 'EJEMPLARES']
 const ALIAS_DISPONIBLES = ['DISPONIBLES']
 const ALIAS_DESCRIPCION = ['RESUMEN', 'DESCRIPCION']
+const ALIAS_ISBN = ['CODIGO ISBN', 'ISBN']
+const ALIAS_DEWEY = ['CODIGO DEWEY']
+const ALIAS_CUTTER = ['CODIGO CUTTER']
+const ALIAS_EDICION = ['EDICION']
+const ALIAS_PAGINAS = ['PAGINAS']
+const ALIAS_EDITORIAL = ['EDITORA', 'EDITORIAL']
+const ALIAS_IDIOMA = ['IDIOMA']
+const ALIAS_SOLO_SALA = ['PRESTAMO SOLO EN SALA']
+const ALIAS_PALABRAS_CLAVE = ['PALABRAS CLAVE']
+const ALIAS_CITA = ['CITA BIBLIOGRAFICA']
+const ALIAS_TIPO = ['TIPO DE ELEMENTO']
+
+// Todas las columnas reales del Excel institucional, en su orden real —
+// usadas tanto para la plantilla descargable como para la exportación,
+// así el archivo que se descarga es 100% reimportable sin fricción.
+const ENCABEZADOS_OFICIALES = [
+  'Nº', 'TIPO DE ELEMENTO', 'ES FÍSICO', 'ES DIGITAL', 'CÓDIGO INTERNO', 'NOMBRE', 'NOMBRE 2',
+  'CÓDIGO ISBN', 'CÓDIGO DEWEY', 'CÓDIGO CUTTER', 'CÓDIGO DE BIBLIOTECA', 'TIPO DE INGRESO',
+  'DONADO POR', 'NÚMERO DE FACTURA', 'NIVEL DE EDUCACIÓN', 'ÁREA DE CONOCIMIENTO', 'FECHA DE INGRESO',
+  'TUTOR', 'UBICACIÓN FÍSICA', 'PERCHA', 'HILERA', 'AUTOR(ES)', 'AUTOR CORPORATIVO',
+  'AÑO DE PUBLICACIÓN', 'EMISIÓN', 'EDICIÓN', 'No. PÁGINAS', 'EDITORA', 'LUGAR DE PUBLICACIÓN',
+  'TOMO', 'VOLUMEN', 'IDIOMA', 'ESTABLECIMIENTO RESPONSABLE', 'DESCRIPCIÓN FÍSICA',
+  'PRÉSTAMO SOLO EN SALA', 'COSTO', 'IMAGEN', 'IMAGEN DE ÍNDICE', 'COLECCIÓN',
+  'ELEMENTO DE REFERENCIA', 'PROGRAMAS', 'ELEMENTOS A INGRESAR', 'PALABRAS CLAVE', 'RESUMEN',
+  'CITA BIBLIOGRÁFICA',
+]
 
 // Encuentra la fila real de encabezados: el Excel institucional trae una fila
 // de título de sección arriba de los encabezados verdaderos (por eso no basta
@@ -144,13 +173,11 @@ function GestionLibros() {
     }
   }
 
-  // Columnas de la plantilla — simplificadas, un alias por campo (la primera
-  // opción de cada lista ALIAS_*), para que la plantilla y la exportación
-  // sean directamente reimportables sin fricción
-  const ENCABEZADOS_PLANTILLA = ['CÓDIGO DE BIBLIOTECA', 'NOMBRE', 'AUTOR(ES)', 'AÑO DE PUBLICACIÓN', 'PROGRAMAS', 'TOTAL', 'DISPONIBLES', 'RESUMEN']
-
+  // La plantilla descargable usa exactamente las mismas 45 columnas del Excel
+  // institucional real, en el mismo orden — así el bibliotecario puede usarla
+  // como base y el archivo siempre es reimportable sin fricción.
   const descargarPlantilla = () => {
-    const hoja = XLSX.utils.aoa_to_sheet([ENCABEZADOS_PLANTILLA])
+    const hoja = XLSX.utils.aoa_to_sheet([ENCABEZADOS_OFICIALES])
     const libro = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(libro, hoja, 'Plantilla')
     XLSX.writeFile(libro, 'plantilla-biblioteca-daniel-perazzo.xlsx')
@@ -161,16 +188,26 @@ function GestionLibros() {
       message.loading({ content: 'Generando exportación...', key: 'export' })
       const todos = await exportarTodosLibros()
       const filas = todos.map((l: any) => ({
+        'TIPO DE ELEMENTO': l.tipo,
+        'CÓDIGO ISBN': l.isbn,
+        'CÓDIGO DEWEY': l.codigoDewey,
+        'CÓDIGO CUTTER': l.codigoCutter,
         'CÓDIGO DE BIBLIOTECA': l.codigo,
+        'ÁREA DE CONOCIMIENTO': l.categoria,
         'NOMBRE': l.titulo,
         'AUTOR(ES)': l.autor,
         'AÑO DE PUBLICACIÓN': l.anio,
-        'PROGRAMAS': l.categoria,
-        'TOTAL': l.totalEjemplares,
-        'DISPONIBLES': l.disponibles,
+        'EDICIÓN': l.edicion,
+        'No. PÁGINAS': l.paginas,
+        'EDITORA': l.editorial,
+        'IDIOMA': l.idioma,
+        'PRÉSTAMO SOLO EN SALA': l.soloEnSala ? 'SI' : 'NO',
+        'PROGRAMAS': l.programa,
+        'PALABRAS CLAVE': l.palabrasClave,
         'RESUMEN': l.descripcion,
+        'CITA BIBLIOGRÁFICA': l.citaBibliografica,
       }))
-      const hoja = XLSX.utils.json_to_sheet(filas, { header: ENCABEZADOS_PLANTILLA })
+      const hoja = XLSX.utils.json_to_sheet(filas)
       const libro = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(libro, hoja, 'Catálogo completo')
       const fecha = new Date().toISOString().slice(0, 10)
@@ -218,8 +255,9 @@ function GestionLibros() {
         return
       }
 
-      // Filtrar filas basura: encabezados repetidos que el Excel institucional
-      // reinserta cada vez que cambia de sección/categoría
+      // Filtrar filas basura: encabezados repetidos y títulos de sección Dewey
+      // (ej. "100 FILOSOFÍA & PSICOLOGÍA") que el Excel institucional reinserta
+      // cada vez que cambia de categoría — ambos casos no tienen código real.
       const filasValidas = rows.filter(row => {
         const codigoValor = normalizar(obtenerValor(row, ALIAS_CODIGO))
         const esEncabezadoRepetido = ALIAS_CODIGO.some(a => codigoValor === normalizar(a))
@@ -232,10 +270,22 @@ function GestionLibros() {
           titulo: obtenerValor(row, ALIAS_TITULO),
           autor: obtenerValor(row, ALIAS_AUTOR),
           anio: parseInt(obtenerValor(row, ALIAS_ANIO)) || new Date().getFullYear(),
-          categoria: obtenerValor(row, ALIAS_CATEGORIA),
+          categoria: obtenerValor(row, ALIAS_CATEGORIA) || 'SIN CATEGORÍA',
           totalEjemplares: parseInt(obtenerValor(row, ALIAS_TOTAL)) || 1,
           disponibles: parseInt(obtenerValor(row, ALIAS_DISPONIBLES) || obtenerValor(row, ALIAS_TOTAL)) || 1,
           descripcion: obtenerValor(row, ALIAS_DESCRIPCION) || obtenerValor(row, ALIAS_TITULO),
+          tipo: obtenerValor(row, ALIAS_TIPO) || undefined,
+          isbn: obtenerValor(row, ALIAS_ISBN) || undefined,
+          codigoDewey: obtenerValor(row, ALIAS_DEWEY) || undefined,
+          codigoCutter: obtenerValor(row, ALIAS_CUTTER) || undefined,
+          edicion: obtenerValor(row, ALIAS_EDICION) || undefined,
+          paginas: parseInt(obtenerValor(row, ALIAS_PAGINAS)) || undefined,
+          editorial: obtenerValor(row, ALIAS_EDITORIAL) || undefined,
+          idioma: obtenerValor(row, ALIAS_IDIOMA) || undefined,
+          soloEnSala: normalizar(obtenerValor(row, ALIAS_SOLO_SALA)) === 'SI',
+          programa: obtenerValor(row, ALIAS_PROGRAMA) || undefined,
+          palabrasClave: obtenerValor(row, ALIAS_PALABRAS_CLAVE) || undefined,
+          citaBibliografica: obtenerValor(row, ALIAS_CITA) || undefined,
         }))
         .filter(l => l.codigo && l.titulo && l.autor)
 
@@ -249,15 +299,11 @@ function GestionLibros() {
       // Un solo request para todo el lote, en vez de una petición por libro
       const resultado = await importarLoteLibros(librosParaCrear)
 
-      if (resultado.creados > 0) {
-        message.success(
-          `Importación completada: ${resultado.creados} libro${resultado.creados > 1 ? 's' : ''} nuevo${resultado.creados > 1 ? 's' : ''}` +
-          (resultado.duplicados > 0 ? `, ${resultado.duplicados} ya existían y se omitieron` : '')
-        )
-        cargarLibros()
-      } else {
-        message.warning(`No se agregó ningún libro nuevo — los ${resultado.duplicados} códigos del archivo ya existen en el catálogo.`)
-      }
+      const partes = []
+      if (resultado.creados > 0) partes.push(`${resultado.creados} nuevo${resultado.creados > 1 ? 's' : ''}`)
+      if (resultado.actualizados > 0) partes.push(`${resultado.actualizados} actualizado${resultado.actualizados > 1 ? 's' : ''}`)
+      message.success(`Importación completada: ${partes.join(', ') || 'sin cambios'}.`)
+      cargarLibros()
     } catch {
       message.error('Error al leer o importar el archivo. Asegúrate de que sea un Excel válido (.xlsx o .xls).')
     } finally {
