@@ -131,15 +131,21 @@ function GestionLibros() {
         .sort((a: any, b: any) => a.label.localeCompare(b.label))
       setProgramas(opciones)
     })
-    getCategorias().then((data: string[]) => {
-      setCategorias(data.map(c => ({ value: c, label: c })))
-    })
   }, [])
 
+  // Las categorías dependen de la carrera elegida — mostrar siempre TODAS
+  // las categorías (aunque no tengan libros de esa carrera) confundía.
   useEffect(() => {
-  const t = setTimeout(() => { cargarLibros() }, 300)
-  return () => clearTimeout(t)
-}, [busqueda, programa, categoria])
+    getCategorias(programa || undefined).then((data: string[]) => {
+      setCategorias(data.map(c => ({ value: c, label: c })))
+    })
+    setCategoria('')
+  }, [programa])
+
+  useEffect(() => {
+    const t = setTimeout(() => { cargarLibros() }, 300)
+    return () => clearTimeout(t)
+  }, [busqueda, programa, categoria])
 
   const abrirCrear = () => { setEditando(null); form.resetFields(); setModalAbierto(true) }
   const abrirEditar = (libro: any) => { setEditando(libro); form.setFieldsValue(libro); setModalAbierto(true) }

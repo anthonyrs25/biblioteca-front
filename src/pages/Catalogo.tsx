@@ -28,10 +28,17 @@ function Catalogo() {
           .sort((a, b) => a.label.localeCompare(b.label)),
       )
     })
-    getCategorias().then((data: string[]) => {
+  }, [])
+
+  // Las categorías dependen de la carrera elegida — mostrar siempre TODAS las
+  // categorías de la biblioteca (aunque no tengan libros de esa carrera)
+  // confundía: elegías "Electricidad" y veías "Historia de América" como opción.
+  useEffect(() => {
+    getCategorias(programa || undefined).then((data: string[]) => {
       setCategorias(data.map(c => ({ value: c, label: c })))
     })
-  }, [])
+    setCategoria(undefined)
+  }, [programa])
 
   useEffect(() => {
     registrarEventoPublico({ tipo: 'visita_pagina', programa: programa || undefined })
