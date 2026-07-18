@@ -16,7 +16,7 @@ const OPCIONES_JORNADA = [
   { value: 'nocturno', label: 'Nocturno' },
 ]
 
-type CicloEditando = { numero: number; materias: string }
+type CicloEditando = { numero: number; materias: string; jornada?: string }
 type CarreraEditando = { nombre: string; ciclos: CicloEditando[] }
 
 interface Props {
@@ -165,6 +165,7 @@ function GestionPersonas({ tipoPersona }: Props) {
         ciclos: (dc.ciclos ?? []).map((c: any) => ({
           numero: c.numero,
           materias: (c.materias ?? []).map((m: any) => m.nombre).join(', '),
+          jornada: c.jornada,
         })),
       }))
 
@@ -239,6 +240,7 @@ function GestionPersonas({ tipoPersona }: Props) {
           await actualizarCiclosDocente(editando.id, carrera.nombre, carrera.ciclos.map(c => ({
             numero: c.numero,
             materias: c.materias.split(',').map((m: string) => m.trim()).filter(Boolean),
+            jornada: c.jornada,
           })))
         }
       }
@@ -556,6 +558,18 @@ function GestionPersonas({ tipoPersona }: Props) {
                         onChange={val => {
                           setCarrerasEditando(carrerasEditando.map(c => c.nombre !== carrera.nombre ? c : {
                             ...c, ciclos: c.ciclos.map((cc, j) => j === i ? { ...cc, numero: val } : cc),
+                          }))
+                        }}
+                      />
+                      <Select
+                        value={ciclo.jornada}
+                        placeholder="Jornada"
+                        allowClear
+                        options={OPCIONES_JORNADA}
+                        style={{ width: 130 }}
+                        onChange={val => {
+                          setCarrerasEditando(carrerasEditando.map(c => c.nombre !== carrera.nombre ? c : {
+                            ...c, ciclos: c.ciclos.map((cc, j) => j === i ? { ...cc, jornada: val } : cc),
                           }))
                         }}
                       />

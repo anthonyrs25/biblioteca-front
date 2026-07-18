@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Statistic, Modal, Input, Empty, Switch, Tag, Select, App } from 'antd'
 import {
   WifiOutlined, BookOutlined, SwapOutlined, TeamOutlined,
-  ClockCircleOutlined, LogoutOutlined, BarChartOutlined, SettingOutlined, SearchOutlined, CrownOutlined,
+  LogoutOutlined, BarChartOutlined, SettingOutlined, SearchOutlined, CrownOutlined,
   IdcardOutlined, ReadOutlined, UserAddOutlined, ArrowLeftOutlined, MailOutlined,
 } from '@ant-design/icons'
 import Logo from '../../components/Logo'
@@ -24,7 +24,6 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
   const navigate = useNavigate()
   const { message } = App.useApp()
   const { esAdmin, modoAdminActivo, activarModoAdmin, volverAModoBibliotecario } = useModo()
-  const [hora, setHora] = useState(new Date())
   const [pulso, setPulso] = useState(false)
   const [totalLibros, setTotalLibros] = useState(0)
   const [prestamosActivos, setPrestamosActivos] = useState(0)
@@ -55,11 +54,6 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
 
   useEffect(() => {
     getCarreras().then((data: any[]) => setCarrerasDisponibles(data.map(c => c.nombre)))
-  }, [])
-
-  useEffect(() => {
-    const t = setInterval(() => setHora(new Date()), 1000)
-    return () => clearInterval(t)
   }, [])
 
   useEffect(() => {
@@ -203,11 +197,7 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
     <div className="home-page">
       <div className="home-header">
         <div className="home-header-left"><Logo /></div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div className="home-clock">
-            <ClockCircleOutlined style={{ marginRight: 6 }} />
-            {hora.toLocaleTimeString('es-EC')}
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
           {esAdmin && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: modoAdminActivo ? '#FEF3C7' : '#F5F7FA', padding: '6px 12px', borderRadius: 10 }}>
               <Tag color={modoAdminActivo ? 'gold' : 'default'} style={{ margin: 0 }}>
@@ -226,11 +216,11 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
           <Button onClick={() => setModalManual(true)} icon={<TeamOutlined />} className="btn-reportes">
             Registrar
           </Button>
-          <Button onClick={handleLogout} icon={<LogoutOutlined />} className="btn-salir">
-            Salir
-          </Button>
           <Button onClick={() => navigate('/sistema/gestion')} icon={<SettingOutlined />} className="btn-reportes">
             Gestión
+          </Button>
+          <Button onClick={handleLogout} icon={<LogoutOutlined />} className="btn-salir" style={{ marginLeft: 'auto' }}>
+            Salir
           </Button>
         </div>
       </div>
