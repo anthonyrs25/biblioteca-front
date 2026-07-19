@@ -7,7 +7,7 @@ import {
   IdcardOutlined, ReadOutlined, UserAddOutlined, ArrowLeftOutlined, MailOutlined,
 } from '@ant-design/icons'
 import Logo from '../../components/Logo'
-import { getUsuarios, getLibros, buscarPorEmail, buscarPorDocumento, crearUsuario, getCarreras } from '../../api/biblioteca'
+import { getUsuarios, getLibros, buscarPorEmail, buscarPorDocumento, crearUsuario, getCarreras, esKioscoActivo, setKioscoActivo } from '../../api/biblioteca'
 import { useModo } from '../../context/ModoContext'
 
 const OPCIONES_CICLO = [1, 2, 3, 4].map(n => ({ value: n, label: `${n}° Ciclo` }))
@@ -32,6 +32,7 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
   const [modalManual, setModalManual] = useState(false)
   const [busquedaManual, setBusquedaManual] = useState('')
   const [pasoManual, setPasoManual] = useState<PasoManual>('tipo')
+  const [kiosco, setKiosco] = useState(esKioscoActivo())
 
   // ── Estudiante ──
   const [emailEstudiante, setEmailEstudiante] = useState('')
@@ -51,6 +52,11 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
   const [numeroDocInvitado, setNumeroDocInvitado] = useState('')
   const [buscandoInvitado, setBuscandoInvitado] = useState(false)
   const [creandoInvitado, setCreandoInvitado] = useState(false)
+
+  const cambiarKiosco = (activo: boolean) => {
+    setKioscoActivo(activo)
+    setKiosco(activo)
+  }
 
   useEffect(() => {
     getCarreras().then((data: any[]) => setCarrerasDisponibles(data.map(c => c.nombre)))
@@ -210,6 +216,13 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
               />
             </div>
           )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: kiosco ? '#E0F2F1' : '#F5F7FA', padding: '6px 12px', borderRadius: 10 }}>
+            <Tag color={kiosco ? 'cyan' : 'default'} style={{ margin: 0 }}>
+              <WifiOutlined style={{ marginRight: 4 }} />
+              Lector RFID
+            </Tag>
+            <Switch checked={kiosco} onChange={cambiarKiosco} size="small" />
+          </div>
           <Button onClick={() => navigate('/sistema/reportes')} icon={<BarChartOutlined />} className="btn-reportes">
             Reportes
           </Button>
@@ -227,12 +240,16 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
 
       <div className="home-hero">
         <div className="hero-left">
-          <div className="hero-badge"><WifiOutlined /> Esperando tarjeta RFID</div>
+          <div className="hero-badge">
+            <WifiOutlined /> {kiosco ? 'Esperando tarjeta RFID' : 'Lector RFID desactivado en este dispositivo'}
+          </div>
           <h1 className="hero-title">
             Sistema de<br /><span>Gestión</span><br />Bibliotecaria
           </h1>
           <p className="hero-subtitle">
-            Acerque su tarjeta RFID al lector para registrar préstamos, devoluciones y uso de sala.
+            {kiosco
+              ? 'Acerque su tarjeta RFID al lector para registrar préstamos, devoluciones y uso de sala.'
+              : 'Active el interruptor "Lector RFID" para que este dispositivo reciba los escaneos del lector.'}
           </p>
         </div>
         <div className="hero-right">
@@ -240,9 +257,9 @@ function SistemaHome({ onDetectado }: { onDetectado: (docente: any) => void }) {
             <div className="blob blob-1" /><div className="blob blob-2" /><div className="blob blob-3" />
             <div className="blob-shine" />
             <div className="radar-container">
-              <div className={`radar-ring ring-1 ${pulso ? 'pulso' : ''}`} />
-              <div className={`radar-ring ring-2 ${pulso ? 'pulso' : ''}`} />
-              <div className={`radar-ring ring-3 ${pulso ? 'pulso' : ''}`} />
+              <div className={`radar-ring ring-1 ${pulso && kiosco ? 'pulso' : ''}`} />
+              <div className={`radar-ring ring-2 ${pulso && kiosco ? 'pulso' : ''}`} />
+              <div className={`radar-ring ring-3 ${pulso && kiosco ? 'pulso' : ''}`} />
               <div className="radar-center">
                 <WifiOutlined style={{ fontSize: 24, color: '#fff' }} />
               </div>

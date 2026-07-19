@@ -81,6 +81,68 @@ export const restaurarUsuario = (id: number) =>
 export const getUltimoEscaneoDesde = (desdeISO: string) =>
   api.get('/rfid/ultimo-escaneo', { params: { desde: desdeISO } }).then(r => r.data)
 
+// ───── ESCUCHA DE ESCANEOS EN VIVO (SSE) + MODO KIOSCO ─────
+
+// El "modo kiosco" decide si ESTE dispositivo escucha los escaneos del lector.
+// Activo por defecto (la computadora de la biblioteca no configura nada);
+// se apaga desde el interruptor "Lector RFID" en la pantalla principal.
+export const esKioscoActivo = () =>
+  localStorage.getItem('biblioteca_kiosco') !== '0'
+
+export const setKioscoActivo = (activo: boolean) => {
+  localStorage.setItem('biblioteca_kiosco', activo ? '1' : '0')
+  window.dispatchEvent(new Event('kiosco-cambiado'))
+}
+
+// Abre el canal SSE con el backend. Se usa fetch en modo streaming (y no
+// EventSource) porque EventSource no puede enviar el header Authorization,
+// y el token nunca debe viajar en la URL. Devuelve una función para cerrar.
+export const conectarEscaneosRfid = (
+  onScan: (data: { uid: string; usuario: any }) => void,
+  onDesconexion?: () => void,
+) => {
+  const controller = new AbortController()
+  const token = localStorage.getItem('biblioteca_token')
+
+  fetch(`${api.defaults.baseURL}/rfid/eventos`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'text/event-stream',
+    },
+    signal: controller.signal,
+  })
+    .then(async res => {
+      if (!res.ok || !res.body) throw new Error('Canal SSE no disponible')
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        // Los eventos SSE vienen separados por línea en blanco
+        const bloques = buffer.split('\n\n')
+        buffer = bloques.pop() ?? ''
+        for (const bloque of bloques) {
+          const lineaData = bloque.split('\n').find(l => l.startsWith('data:'))
+          if (!lineaData) continue
+          try {
+            const dato = JSON.parse(lineaData.slice(5).trim())
+            if (dato && typeof dato === 'object') onScan(dato)
+          } catch {
+            // "ping" u otro texto no-JSON: se ignora, solo mantiene viva la conexión
+          }
+        }
+      }
+      if (!controller.signal.aborted) onDesconexion?.()
+    })
+    .catch(() => {
+      if (!controller.signal.aborted) onDesconexion?.()
+    })
+
+  return () => controller.abort()
+}
+
 // ───── LIBROS ─────
 
 export const getLibros = () =>

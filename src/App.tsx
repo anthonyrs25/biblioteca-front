@@ -16,30 +16,56 @@ import GestionPersonas from './pages/sistema/GestionPersonas'
 import GestionStaff from './pages/sistema/GestionStaff'
 import ProtectedRoute from './components/ProtectedRoute'
 import { ModoProvider } from './context/ModoContext'
-import api from './api/biblioteca'
+import { conectarEscaneosRfid, esKioscoActivo } from './api/biblioteca'
 
-function RfidPoller({ onDetectado }: { onDetectado: (docente: any) => void }) {
+// Escucha los escaneos del lector por SSE ("timbre"): el backend avisa al
+// instante, sin polling. Solo escucha si este dispositivo tiene el modo
+// kiosco activo — así una sesión abierta en un celular no captura el modal.
+function RfidListener({ onDetectado }: { onDetectado: (docente: any) => void }) {
   const location = useLocation()
+  const [kioscoActivo, setKioscoActivo] = useState(esKioscoActivo())
+
+  useEffect(() => {
+    const actualizar = () => setKioscoActivo(esKioscoActivo())
+    window.addEventListener('kiosco-cambiado', actualizar)
+    window.addEventListener('storage', actualizar)
+    return () => {
+      window.removeEventListener('kiosco-cambiado', actualizar)
+      window.removeEventListener('storage', actualizar)
+    }
+  }, [])
 
   useEffect(() => {
     if (!location.pathname.startsWith('/sistema')) return
+    if (!kioscoActivo) return
     const token = localStorage.getItem('biblioteca_token')
     if (!token) return
 
-    const poll = setInterval(async () => {
-      try {
-        const res = await api.get('/rfid/pendiente')
-        const data = res.data
-        if (data && data.usuario && data.usuario.id) {
-          onDetectado(data.usuario)
-        }
-      } catch {
-        // sin tarjeta pendiente, ignorar
-      }
-    }, 2000)
+    let cerrarCanal: (() => void) | null = null
+    let reintento: ReturnType<typeof setTimeout> | null = null
+    let vigente = true
 
-    return () => clearInterval(poll)
-  }, [location.pathname])
+    const conectar = () => {
+      if (!vigente) return
+      cerrarCanal = conectarEscaneosRfid(
+        data => {
+          if (data?.usuario?.id) onDetectado(data.usuario)
+        },
+        () => {
+          // Se cayó la conexión (red, redeploy, etc.): reintentar en 3s
+          if (vigente) reintento = setTimeout(conectar, 3000)
+        },
+      )
+    }
+
+    conectar()
+
+    return () => {
+      vigente = false
+      if (reintento) clearTimeout(reintento)
+      cerrarCanal?.()
+    }
+  }, [location.pathname, kioscoActivo])
 
   return null
 }
@@ -136,7 +162,7 @@ function App() {
         <div className="aurora-bg" />
         <BrowserRouter>
           <ModoProvider>
-            <RfidPoller onDetectado={handleDetectado} />
+            <RfidListener onDetectado={handleDetectado} />
 
             <Modal
               open={modalAbierto}
