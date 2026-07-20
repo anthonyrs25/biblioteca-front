@@ -15,13 +15,18 @@ import GestionLibros from './pages/sistema/GestionLibros'
 import GestionPersonas from './pages/sistema/GestionPersonas'
 import GestionStaff from './pages/sistema/GestionStaff'
 import ProtectedRoute from './components/ProtectedRoute'
+import RegistroManual from './components/RegistroManual'
 import { ModoProvider } from './context/ModoContext'
 import { conectarEscaneosRfid, esKioscoActivo } from './api/biblioteca'
+import { LLAVEROS_GENERALES, type PasoSelector } from './config/llaverosGenerales'
 
 // Escucha los escaneos del lector por SSE ("timbre"): el backend avisa al
 // instante, sin polling. Solo escucha si este dispositivo tiene el modo
 // kiosco activo — así una sesión abierta en un celular no captura el modal.
-function RfidListener({ onDetectado }: { onDetectado: (docente: any) => void }) {
+function RfidListener({ onDetectado, onSelector }: {
+  onDetectado: (docente: any) => void
+  onSelector: (paso: PasoSelector) => void
+}) {
   const location = useLocation()
   const [kioscoActivo, setKioscoActivo] = useState(esKioscoActivo())
 
@@ -49,7 +54,15 @@ function RfidListener({ onDetectado }: { onDetectado: (docente: any) => void }) 
       if (!vigente) return
       cerrarCanal = conectarEscaneosRfid(
         data => {
-          if (data?.usuario?.id) onDetectado(data.usuario)
+          if (data?.usuario?.id) {
+            // Llavero personal: abrir el panel de esa persona
+            onDetectado(data.usuario)
+          } else if (data?.uid && LLAVEROS_GENERALES[data.uid]) {
+            // Token general: abrir el Registro Manual en el paso indicado
+            onSelector(LLAVEROS_GENERALES[data.uid])
+          }
+          // UID desconocido y no-selector: se ignora aquí — el flujo
+          // "Vincular llavero" de Gestión lo captura por su propio canal.
         },
         () => {
           // Se cayó la conexión (red, redeploy, etc.): reintentar en 3s
@@ -144,10 +157,25 @@ function App() {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [vista, setVista] = useState<'docente' | 'uso' | 'prestamo' | 'devolucion'>('docente')
 
+  // Modal global de Registro Manual: lo abren el botón de la pantalla de
+  // inicio y los tokens RFID generales — desde cualquier pantalla del sistema.
+  const [manualAbierto, setManualAbierto] = useState(false)
+  const [manualPaso, setManualPaso] = useState<PasoSelector | null>(null)
+
   const handleDetectado = (docente: any) => {
     setDocenteActivo(docente)
     setVista('docente')
     setModalAbierto(true)
+  }
+
+  const abrirManual = (paso: PasoSelector | null = null) => {
+    setManualPaso(paso)
+    setManualAbierto(true)
+  }
+
+  const cerrarManual = () => {
+    setManualAbierto(false)
+    setManualPaso(null)
   }
 
   const cerrarModal = () => {
@@ -162,8 +190,12 @@ function App() {
         <div className="aurora-bg" />
         <BrowserRouter>
           <ModoProvider>
-            <RfidListener onDetectado={handleDetectado} />
+            <RfidListener
+              onDetectado={handleDetectado}
+              onSelector={paso => abrirManual(paso)}
+            />
 
+            {/* Panel de la persona identificada (llavero personal o selección manual) */}
             <Modal
               open={modalAbierto}
               onCancel={cerrarModal}
@@ -207,13 +239,34 @@ function App() {
               )}
             </Modal>
 
+            {/* Registro Manual global: disponible sobre cualquier pantalla */}
+            <Modal
+              title="Registrar manualmente"
+              open={manualAbierto}
+              onCancel={cerrarManual}
+              footer={null}
+              destroyOnClose
+              centered
+              width={480}
+            >
+              {manualAbierto && (
+                <RegistroManual
+                  pasoInicial={manualPaso ?? undefined}
+                  onSeleccionar={usuario => {
+                    cerrarManual()
+                    handleDetectado(usuario)
+                  }}
+                />
+              )}
+            </Modal>
+
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/catalogo" element={<Catalogo />} />
               <Route path="/login" element={<Login />} />
               <Route path="/sistema" element={
                 <ProtectedRoute>
-                  <SistemaHome onDetectado={handleDetectado} />
+                  <SistemaHome onAbrirRegistroManual={() => abrirManual()} />
                 </ProtectedRoute>
 
               } />
