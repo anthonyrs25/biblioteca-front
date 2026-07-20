@@ -213,6 +213,9 @@ export const getPrestamosActivos = () =>
 export const getTodosLosPrestamos = () =>
   api.get('/prestamos/todos').then(r => r.data)
 
+export const exportarTodosPrestamos = () =>
+  api.get('/prestamos/exportar-todos').then(r => r.data)
+
 // ───── REGISTROS ─────
 
 export const crearRegistro = (data: {
@@ -244,6 +247,9 @@ export const getMateriasDisponibles = () =>
 
 export const getRegistrosMes = (anio: number, mes: number) =>
   api.get(`/registros/mes/${anio}/${mes}`).then(r => r.data)
+
+export const exportarTodosRegistros = () =>
+  api.get('/registros/exportar-todos').then(r => r.data)
 
 export const getRankingVisitasUsuarios = (periodo?: string, tipoPersona?: string, carrera?: string, materia?: string) =>
   api.get('/registros/ranking-usuarios', { params: { periodo, tipoPersona, carrera, materia } }).then(r => r.data)

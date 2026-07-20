@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Statistic, Progress, Tabs, Table, Tag, Select, DatePicker } from 'antd'
+import { Statistic, Progress, Tabs, Table, Tag, Select, DatePicker, Button, App } from 'antd'
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Legend,
 } from 'recharts'
 import {
   ArrowLeftOutlined, BarChartOutlined, TeamOutlined,
-  SwapOutlined, CheckCircleOutlined, BookOutlined,
+  SwapOutlined, CheckCircleOutlined, BookOutlined, DownloadOutlined,
 } from '@ant-design/icons'
 import dayjs, { Dayjs } from 'dayjs'
 import { getStatsPeriodo, getComparativaAnual, getComparativaPorTipo, getLibros, getRegistrosMes, getTodosLosPrestamos, getUsuarios, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios, getMateriasDisponibles, getCarreras } from '../../api/biblioteca'
 import { nombreCortoPrograma } from '../../utils/carreras'
+import { descargarRespaldoExcel } from '../../utils/respaldo'
 
 type TabKey = 'resumen' | 'visitas' | 'prestamos' | 'analitica'
 
@@ -24,6 +25,7 @@ const ETIQUETA_TIPO: Record<string, string> = {
 
 function Reportes() {
   const navigate = useNavigate()
+  const { message } = App.useApp()
   const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState<TabKey>(
     (searchParams.get('tab') as TabKey) || 'resumen'
@@ -35,6 +37,7 @@ function Reportes() {
   const [prestamos, setPrestamos] = useState<any[]>([])
   const [usuarios, setUsuarios] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [descargando, setDescargando] = useState(false)
   const [anio, setAnio] = useState(dayjs().year())
   const [mes, setMes] = useState(dayjs().month() + 1)
   const [usuarioFiltro, setUsuarioFiltro] = useState<number | undefined>()
@@ -61,6 +64,20 @@ function Reportes() {
 
   const mesNombre = dayjs(`${anio}-${String(mes).padStart(2, '0')}-01`)
     .toDate().toLocaleString('es-EC', { month: 'long', year: 'numeric' })
+
+  // Descarga un .xlsx con todo el historial (préstamos, registros, usuarios
+  // y libros). Es la red de seguridad ante la caída o el fin del hosting.
+  const handleRespaldo = async () => {
+    setDescargando(true)
+    try {
+      const r = await descargarRespaldoExcel()
+      message.success(`Respaldo descargado: ${r.prestamos} préstamos, ${r.registros} registros, ${r.usuarios} usuarios, ${r.libros} libros`)
+    } catch {
+      message.error('No se pudo generar el respaldo — revisa la conexión e inténtalo de nuevo')
+    } finally {
+      setDescargando(false)
+    }
+  }
 
   const cargarDatos = () => {
     setLoading(true)
@@ -366,6 +383,15 @@ function Reportes() {
           </h1>
           <p className="reportes-subtitulo">Biblioteca Daniel Perazzo · {mesNombre}</p>
         </div>
+        <Button
+          className="btn-exportar"
+          icon={<DownloadOutlined />}
+          size="large"
+          loading={descargando}
+          onClick={handleRespaldo}
+        >
+          Descargar respaldo (Excel)
+        </Button>
       </div>
 
       <Tabs
