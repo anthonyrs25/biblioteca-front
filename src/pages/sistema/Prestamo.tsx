@@ -3,6 +3,7 @@ import { Input, Button, App, Select, DatePicker, Tag } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
 import { SwapOutlined, ArrowLeftOutlined, SearchOutlined, CalendarOutlined } from '@ant-design/icons'
 import { buscarLibros, getProgramas, crearPrestamo, crearRegistro } from '../../api/biblioteca'
+import { nombreCortoPrograma } from '../../utils/carreras'
 
 interface Props {
   docente: any | null
@@ -42,6 +43,13 @@ function Prestamo({ docente, onTerminar, enModal }: Props) {
   }, [texto, programaSeleccionado])
 
   if (!docente) return null
+
+  // El valor sigue siendo el programa completo (así lo espera el backend al
+  // filtrar libros); solo la ETIQUETA visible usa el nombre corto, igual
+  // que en el catálogo público y los rankings.
+  const opcionesPrograma = programas
+    .map(p => ({ value: p, label: nombreCortoPrograma(p) }))
+    .sort((a, b) => a.label.localeCompare(b.label))
 
   // Si la persona ya tiene un número de documento guardado (típico de un
   // invitado registrado con su cédula) y elige "cédula" como respaldo,
@@ -101,9 +109,11 @@ function Prestamo({ docente, onTerminar, enModal }: Props) {
       <div className="form-field">
         <label className="field-label">Carrera (opcional)</label>
         <Select placeholder="Filtrar por carrera"
-          options={programas.map(p => ({ value: p, label: p }))}
+          options={opcionesPrograma}
           value={programaSeleccionado} onChange={setProgramaSeleccionado}
-          allowClear style={{ width: '100%' }} size="large" />
+          allowClear style={{ width: '100%' }} size="large"
+          showSearch
+          filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())} />
       </div>
 
       <div className="form-field">
