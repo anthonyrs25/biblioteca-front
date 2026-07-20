@@ -3,12 +3,13 @@
 // paso indicado, donde se identifica a la persona real (así los
 // reportes nunca registran actividad a nombre de usuarios genéricos).
 //
-// Para agregar otro token (ej. un futuro llavero "Docentes"):
-// agrega su UID (mayúsculas, sin espacios) con el paso deseado.
+// Para agregar otro token: agrega su UID (mayúsculas, sin espacios)
+// con el paso deseado.
 
 export type PasoSelector = 'docente' | 'estudiante' | 'invitado'
 
 export const LLAVEROS_GENERALES: Record<string, PasoSelector> = {
-  '738F1492': 'estudiante', // llavero 5 — acceso general de estudiantes
-  'B943AA14': 'invitado',   // tarjeta — acceso general de invitados/externos
+  '738F1492': 'docente',    // llavero 5 — acceso general de docentes
+  'C82F0059': 'estudiante', // tarjeta 1 — acceso general de estudiantes
+  'B943AA14': 'invitado', // tarjeta 2 — acceso general de invitados/externos
 }
