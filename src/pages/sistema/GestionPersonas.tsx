@@ -83,7 +83,9 @@ function GestionPersonas({ tipoPersona }: Props) {
   const [filtroJornada, setFiltroJornada] = useState<string | undefined>()
   const [filtroMateria, setFiltroMateria] = useState<string | undefined>()
 
-  const [vinculando, setVinculando] = useState(false)
+  // Vinculación de llavero: puede estar activa desde el modal de EDITAR
+  // o desde el de CREAR — se guarda cuál para escribir en el form correcto.
+  const [vinculando, setVinculando] = useState<null | 'editar' | 'crear'>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -132,7 +134,9 @@ function GestionPersonas({ tipoPersona }: Props) {
   const cargarPersonas = () => {
     setCargando(true)
     getUsuarios(esTodos ? undefined : (segmento as Tipo))
-      .then(setPersonas)
+      // El staff (admin/bibliotecario) tiene su propia página en Gestión de
+      // Staff — aquí solo se administran los usuarios de la biblioteca.
+      .then((data: any[]) => setPersonas(data.filter((p: any) => p.tipoPersona !== 'STAFF')))
       .catch(() => message.error(`Error al cargar los ${etiquetaPlural.toLowerCase()}`))
       .finally(() => setCargando(false))
   }
@@ -220,14 +224,15 @@ function GestionPersonas({ tipoPersona }: Props) {
     setModalEditar(true)
   }
 
-  // ───── Vincular llavero nuevo — 100% software, sin tocar el ESP32 ─────
+  // ───── Vincular llavero — 100% software, sin tocar el ESP32 ─────
   const detenerVinculacion = () => {
-    setVinculando(false)
+    setVinculando(null)
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
   }
 
-  const iniciarVinculacion = () => {
-    setVinculando(true)
+  const iniciarVinculacion = (destino: 'editar' | 'crear') => {
+    setVinculando(destino)
+    const form = destino === 'editar' ? formEditar : formCrear
     const desde = new Date().toISOString()
     pollRef.current = setInterval(async () => {
       try {
@@ -235,11 +240,13 @@ function GestionPersonas({ tipoPersona }: Props) {
         if (!scan) return
         detenerVinculacion()
         const yaAsignado = await getUsuarioByRfid(scan.uid).catch(() => null)
-        if (yaAsignado && yaAsignado.id !== editando?.id) {
+        // Al crear, cualquier llavero con dueño se rechaza; al editar,
+        // se permite re-leer el llavero de la misma persona.
+        if (yaAsignado && (destino === 'crear' || yaAsignado.id !== editando?.id)) {
           message.warning(`Ese llavero ya está vinculado a ${yaAsignado.nombre}. Usa uno distinto.`)
           return
         }
-        formEditar.setFieldValue('rfid', scan.uid)
+        form.setFieldValue('rfid', scan.uid)
         message.success('Llavero detectado y cargado en el formulario')
       } catch {
         // sin escaneo todavía, seguir esperando
@@ -330,6 +337,7 @@ function GestionPersonas({ tipoPersona }: Props) {
         }] : undefined,
       })
       message.success(`${etiquetaDe(tipoFinal)} creado correctamente`)
+      detenerVinculacion()
       setModalCrear(false)
       formCrear.resetFields()
       cargarPersonas()
@@ -565,22 +573,23 @@ function GestionPersonas({ tipoPersona }: Props) {
             <Input maxLength={3} />
           </Form.Item>
           <Form.Item
-            name="rfid"
             label="UID del llavero RFID"
             extra="Puedes escribirlo a mano, o usar el botón de la derecha y acercar el llavero al lector."
           >
             <div style={{ display: 'flex', gap: 8 }}>
-              <Input placeholder="Ej: 6AE13E3E" disabled={vinculando} />
+              <Form.Item name="rfid" noStyle>
+                <Input placeholder="Ej: 6AE13E3E" disabled={vinculando === 'editar'} />
+              </Form.Item>
               <Button
                 icon={<WifiOutlined />}
-                onClick={vinculando ? detenerVinculacion : iniciarVinculacion}
-                danger={vinculando}
+                onClick={vinculando === 'editar' ? detenerVinculacion : () => iniciarVinculacion('editar')}
+                danger={vinculando === 'editar'}
               >
-                {vinculando ? 'Cancelar' : 'Vincular llavero'}
+                {vinculando === 'editar' ? 'Cancelar' : 'Vincular llavero'}
               </Button>
             </div>
           </Form.Item>
-          {vinculando && (
+          {vinculando === 'editar' && (
             <div style={{ fontSize: 13, color: '#00796B', marginTop: -8, marginBottom: 16 }}>
               <WifiOutlined style={{ marginRight: 6 }} />
               Esperando... acerca el llavero nuevo al lector RFID de la biblioteca.
@@ -699,7 +708,7 @@ function GestionPersonas({ tipoPersona }: Props) {
         title={`Nuevo ${etiqueta}`}
         open={modalCrear}
         onOk={handleCrearPersona}
-        onCancel={() => setModalCrear(false)}
+        onCancel={() => { detenerVinculacion(); setModalCrear(false) }}
         okText={tipoCrear ? `Crear ${etiquetaDe(tipoCrear).toLowerCase()}` : 'Crear'}
         cancelText="Cancelar"
         width={560}
@@ -709,7 +718,7 @@ function GestionPersonas({ tipoPersona }: Props) {
             <Form.Item
               name="tipoPersonaNuevo"
               label="Tipo de usuario"
-              rules={[{ required: true, message: 'Selecciona el tipo de usuario' }]}
+              rules={[{ required: true, message: 'Selecciona el tipo' }]}
             >
               <Select
                 placeholder="Docente, estudiante o invitado"
@@ -737,9 +746,29 @@ function GestionPersonas({ tipoPersona }: Props) {
               >
                 <Input placeholder="nombre@sudamericano.edu.ec" />
               </Form.Item>
-              <Form.Item name="rfid" label="UID del llavero RFID">
-                <Input placeholder="Ej: 6AE13E3E (opcional, se puede asignar después)" />
+              <Form.Item
+                label="UID del llavero RFID (opcional)"
+                extra="Puedes escribirlo a mano, usar el botón y acercar el llavero al lector, o asignarlo después."
+              >
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Form.Item name="rfid" noStyle>
+                    <Input placeholder="Ej: 6AE13E3E" disabled={vinculando === 'crear'} />
+                  </Form.Item>
+                  <Button
+                    icon={<WifiOutlined />}
+                    onClick={vinculando === 'crear' ? detenerVinculacion : () => iniciarVinculacion('crear')}
+                    danger={vinculando === 'crear'}
+                  >
+                    {vinculando === 'crear' ? 'Cancelar' : 'Vincular llavero'}
+                  </Button>
+                </div>
               </Form.Item>
+              {vinculando === 'crear' && (
+                <div style={{ fontSize: 13, color: '#00796B', marginTop: -8, marginBottom: 16 }}>
+                  <WifiOutlined style={{ marginRight: 6 }} />
+                  Esperando... acerca el llavero nuevo al lector RFID de la biblioteca.
+                </div>
+              )}
               {crearEsInvitado ? (
                 <>
                   <Divider style={{ margin: '8px 0 16px' }}>Documento</Divider>
