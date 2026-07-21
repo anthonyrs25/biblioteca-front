@@ -7,11 +7,17 @@ import {
 import {
   ArrowLeftOutlined, BarChartOutlined, TeamOutlined,
   SwapOutlined, CheckCircleOutlined, BookOutlined, DownloadOutlined,
+  PrinterOutlined, FileTextOutlined, FilePdfOutlined,
 } from '@ant-design/icons'
 import dayjs, { Dayjs } from 'dayjs'
-import { getStatsPeriodo, getComparativaAnual, getComparativaPorTipo, getLibros, getRegistrosMes, getTodosLosPrestamos, getUsuarios, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios, getMateriasDisponibles, getCarreras } from '../../api/biblioteca'
+import { getStatsPeriodo, getComparativaAnual, getComparativaPorTipo, getLibros, getRegistrosMes, getTodosLosPrestamos, getUsuarios, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios, getMateriasDisponibles, getCarreras, exportarTodosPrestamos, exportarTodosRegistros } from '../../api/biblioteca'
 import { nombreCortoPrograma } from '../../utils/carreras'
 import { descargarRespaldoExcel } from '../../utils/respaldo'
+import {
+  imprimirPlantillaUso, imprimirPlantillaPrestamos,
+  imprimirRegistrosUso, imprimirPrestamos, imprimirReporteGestion,
+} from '../../utils/impresion'
+import type { TipoHoja } from '../../utils/impresion'
 import { escucharDatosActualizados } from '../../utils/refresco'
 
 type TabKey = 'resumen' | 'visitas' | 'prestamos' | 'analitica'
@@ -23,6 +29,20 @@ const ETIQUETA_TIPO: Record<string, string> = {
   ESTUDIANTE: 'Estudiante',
   INVITADO: 'Invitado',
 }
+
+const OPCIONES_TIPO_HOJA = [
+  { value: 'TODOS', label: 'Todos' },
+  { value: 'DOCENTE', label: 'Docentes' },
+  { value: 'ESTUDIANTE', label: 'Estudiantes' },
+  { value: 'INVITADO', label: 'Invitados' },
+]
+
+const OPCIONES_ALCANCE = [
+  { value: 'mes', label: 'Mes seleccionado' },
+  { value: 'todo', label: 'Todo el historial' },
+]
+
+const [alcanceReporte, setAlcanceReporte] = useState<'mes' | 'todo'>('mes')
 
 function Reportes() {
   const navigate = useNavigate()
@@ -39,10 +59,13 @@ function Reportes() {
   const [usuarios, setUsuarios] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [descargando, setDescargando] = useState(false)
+  const [imprimiendo, setImprimiendo] = useState(false)
   const [anio, setAnio] = useState(dayjs().year())
   const [mes, setMes] = useState(dayjs().month() + 1)
   const [usuarioFiltro, setUsuarioFiltro] = useState<number | undefined>()
   const [soloActivos, setSoloActivos] = useState(false)
+  const [tipoHoja, setTipoHoja] = useState<TipoHoja>('TODOS')
+  const [alcanceHoja, setAlcanceHoja] = useState<'mes' | 'todo'>('mes')
   const [visitasPublicas, setVisitasPublicas] = useState(0)
   const [librosMasBuscados, setLibrosMasBuscados] = useState<any[]>([])
   const [rankingVisitas, setRankingVisitas] = useState<any[]>([])
@@ -77,6 +100,97 @@ function Reportes() {
       message.error('No se pudo generar el respaldo — revisa la conexión e inténtalo de nuevo')
     } finally {
       setDescargando(false)
+    }
+  }
+
+  // Imprime la hoja con datos. Con alcance "mes" usa lo ya cargado en
+  // pantalla; con "todo" pide el historial completo al backend.
+  const handleImprimirDatos = async (hoja: 'uso' | 'prestamos') => {
+    setImprimiendo(true)
+    try {
+      if (alcanceHoja === 'mes') {
+        const periodo = `Período: ${mesNombre}`
+        if (hoja === 'uso') imprimirRegistrosUso(registros, tipoHoja, periodo)
+        else imprimirPrestamos(prestamosDelMes, tipoHoja, periodo)
+      } else {
+        const periodo = 'Historial completo'
+        if (hoja === 'uso') {
+          const todos = await exportarTodosRegistros()
+          imprimirRegistrosUso(todos, tipoHoja, periodo)
+        } else {
+          const todos = await exportarTodosPrestamos()
+          imprimirPrestamos(todos, tipoHoja, periodo)
+        }
+      }
+    } catch {
+      message.error('No se pudo generar la hoja — revisa la conexión e inténtalo de nuevo')
+    } finally {
+      setImprimiendo(false)
+    }
+  }
+
+  // Reporte de gestión: resumen con indicadores, distribución por carrera
+  // y ranking de libros. Pensado para presentar a la institución.
+  const handleImprimirReporte = async () => {
+    setImprimiendo(true)
+    try {
+      const esMes = alcanceReporte === 'mes'
+
+      // Registros del período: el mes ya está cargado; para "todo" se pide al backend
+      const regs = esMes ? registros : await exportarTodosRegistros()
+      const pres = esMes ? prestamosDelMes : await exportarTodosPrestamos()
+
+      const porCarreraMap: Record<string, number> = {}
+      regs.forEach((r: any) => {
+        if (r.carrera) porCarreraMap[r.carrera] = (porCarreraMap[r.carrera] || 0) + 1
+      })
+      const porCarrera = Object.entries(porCarreraMap)
+        .map(([carrera, visitas]) => ({ carrera, visitas }))
+        .sort((a, b) => b.visitas - a.visitas)
+
+      const porTipo = ['DOCENTE', 'ESTUDIANTE', 'INVITADO'].map(tipoPersona => {
+        const delTipo = regs.filter((r: any) => r.usuario?.tipoPersona === tipoPersona)
+        return {
+          tipoPersona,
+          visitas: delTipo.length,
+          prestamos: delTipo.filter((r: any) => r.tipo === 'prestamo').length,
+          devoluciones: delTipo.filter((r: any) => r.tipo === 'devolucion').length,
+        }
+      })
+
+      // Ranking de libros construido desde los préstamos del período
+      const conteoLibros: Record<number, { titulo: string; autor: string; codigo: string; prestamos: number }> = {}
+      pres.forEach((p: any) => {
+        if (!p.libro) return
+        if (!conteoLibros[p.libro.id]) {
+          conteoLibros[p.libro.id] = {
+            titulo: p.libro.titulo, autor: p.libro.autor,
+            codigo: p.libro.codigo, prestamos: 0,
+          }
+        }
+        conteoLibros[p.libro.id].prestamos++
+      })
+      const librosTop = Object.values(conteoLibros)
+        .sort((a, b) => b.prestamos - a.prestamos)
+        .slice(0, 15)
+
+      imprimirReporteGestion({
+        periodo: esMes ? `Período: ${mesNombre}` : 'Historial completo',
+        totalVisitas: regs.length,
+        usos: regs.filter((r: any) => r.tipo === 'uso').length,
+        prestamos: regs.filter((r: any) => r.tipo === 'prestamo').length,
+        devoluciones: regs.filter((r: any) => r.tipo === 'devolucion').length,
+        activos: pres.filter((p: any) => p.activo).length,
+        porCarrera,
+        porTipo,
+        librosTop,
+        totalLibros,
+        disponibles,
+      })
+    } catch {
+      message.error('No se pudo generar el reporte — revisa la conexión e inténtalo de nuevo')
+    } finally {
+      setImprimiendo(false)
     }
   }
 
@@ -153,6 +267,10 @@ function Reportes() {
   const registrosFiltrados = registros.filter(r =>
     !usuarioFiltro || r.usuario?.id === usuarioFiltro
   )
+
+  // Préstamos del mes seleccionado, sin los filtros de pantalla — es la
+  // base de la hoja impresa cuando el alcance es "mes".
+  const prestamosDelMes = prestamos.filter(p => enMesSeleccionado(p.fechaPrestamo))
 
   const prestamosFiltrados = prestamos.filter(p => {
     // Antes el selector de Mes no afectaba a los préstamos (mostraba todo el
@@ -373,6 +491,48 @@ function Reportes() {
     </div>
   )
 
+  // Barra de impresión: se muestra en las pestañas de visitas y préstamos.
+  // "Hoja con datos" imprime lo registrado; "Hoja en blanco" imprime el
+  // formulario vacío para llenar a mano si el sistema no está disponible.
+  const barraImpresion = (hoja: 'uso' | 'prestamos') => (
+    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16, padding: '12px 16px', background: '#E0F2F1', borderRadius: 10, border: '1px solid #B2DFDB' }}>
+      <PrinterOutlined style={{ color: '#00796B', fontSize: 18 }} />
+      <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Imprimir hoja:</span>
+      <Select
+        value={tipoHoja}
+        onChange={setTipoHoja}
+        style={{ width: 150 }}
+        options={OPCIONES_TIPO_HOJA}
+      />
+      <Select
+        value={alcanceHoja}
+        onChange={setAlcanceHoja}
+        style={{ width: 180 }}
+        options={OPCIONES_ALCANCE}
+      />
+      <Button
+        type="primary"
+        icon={<PrinterOutlined />}
+        loading={imprimiendo}
+        onClick={() => handleImprimirDatos(hoja)}
+        style={{ background: '#00796B' }}
+      >
+        Hoja con datos
+      </Button>
+      <Button
+        icon={<FileTextOutlined />}
+        onClick={() => hoja === 'uso'
+          ? imprimirPlantillaUso(tipoHoja)
+          : imprimirPlantillaPrestamos(tipoHoja)}
+      >
+        Hoja en blanco
+      </Button>
+      <span style={{ fontSize: 11, color: '#4A5568', marginLeft: 'auto' }}>
+        Se abre el diálogo de impresión: puedes imprimir o guardar como PDF.
+      </span>
+    </div>
+  )
+
   return (
     <div className="reportes-page">
       <div className="reportes-header">
@@ -406,6 +566,28 @@ function Reportes() {
             label: 'Uso de la biblioteca',
             children: (
               <>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16, padding: '12px 16px', background: '#E0F2F1', borderRadius: 10, border: '1px solid #B2DFDB' }}>
+                  <FilePdfOutlined style={{ color: '#00796B', fontSize: 18 }} />
+                  <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Reporte de gestión:</span>
+                  <Select
+                    value={alcanceReporte}
+                    onChange={setAlcanceReporte}
+                    style={{ width: 180 }}
+                    options={OPCIONES_ALCANCE}
+                  />
+                  <Button
+                    type="primary"
+                    icon={<PrinterOutlined />}
+                    loading={imprimiendo}
+                    onClick={handleImprimirReporte}
+                    style={{ background: '#00796B' }}
+                  >
+                    Imprimir reporte
+                  </Button>
+                  <span style={{ fontSize: 11, color: '#4A5568', marginLeft: 'auto' }}>
+                    Resumen con indicadores, uso por carrera y libros más prestados.
+                  </span>
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Período:</span>
@@ -602,6 +784,7 @@ function Reportes() {
             children: (
               <>
                 {filtros}
+                {barraImpresion('uso')}
                 <div className="reporte-card">
                   <Table
                     columns={columnasRegistros}
@@ -622,6 +805,7 @@ function Reportes() {
             children: (
               <>
                 {filtros}
+                {barraImpresion('prestamos')}
                 <div className="reporte-card">
                   <Table
                     columns={columnasPrestamos}
