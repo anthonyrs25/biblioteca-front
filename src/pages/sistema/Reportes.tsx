@@ -42,8 +42,6 @@ const OPCIONES_ALCANCE = [
   { value: 'todo', label: 'Todo el historial' },
 ]
 
-const [alcanceReporte, setAlcanceReporte] = useState<'mes' | 'todo'>('mes')
-
 function Reportes() {
   const navigate = useNavigate()
   const { message } = App.useApp()
@@ -85,6 +83,8 @@ function Reportes() {
   const [materiaResumen, setMateriaResumen] = useState<string | undefined>()
   const [materiasDisponibles, setMateriasDisponibles] = useState<string[]>([])
   const [carrerasDisponibles, setCarrerasDisponibles] = useState<string[]>([])
+  const [alcanceReporte, setAlcanceReporte] = useState<'mes' | 'todo'>('mes')
+
 
   const mesNombre = dayjs(`${anio}-${String(mes).padStart(2, '0')}-01`)
     .toDate().toLocaleString('es-EC', { month: 'long', year: 'numeric' })
