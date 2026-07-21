@@ -8,6 +8,7 @@ import {
   agregarCarreraUsuario, quitarCarreraUsuario, getUltimoEscaneoDesde, getUsuarioByRfid,
   cambiarRolUsuario, eliminarUsuario, getPapeleraUsuarios, restaurarUsuario, getCarreras,
 } from '../../api/biblioteca'
+import { escucharDatosActualizados } from '../../utils/refresco'
 
 const OPCIONES_CICLO = [1, 2, 3, 4].map(n => ({ value: n, label: `${n}° Ciclo` }))
 const OPCIONES_JORNADA = [
@@ -142,6 +143,9 @@ function GestionPersonas({ tipoPersona }: Props) {
   }
 
   useEffect(() => { cargarPersonas() }, [segmento])
+
+  useEffect(() => escucharDatosActualizados(cargarPersonas), [segmento])
+
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
   // Materias disponibles para el filtro: se calculan de las personas ya cargadas,

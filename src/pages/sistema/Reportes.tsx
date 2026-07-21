@@ -12,6 +12,7 @@ import dayjs, { Dayjs } from 'dayjs'
 import { getStatsPeriodo, getComparativaAnual, getComparativaPorTipo, getLibros, getRegistrosMes, getTodosLosPrestamos, getUsuarios, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios, getMateriasDisponibles, getCarreras } from '../../api/biblioteca'
 import { nombreCortoPrograma } from '../../utils/carreras'
 import { descargarRespaldoExcel } from '../../utils/respaldo'
+import { escucharDatosActualizados } from '../../utils/refresco'
 
 type TabKey = 'resumen' | 'visitas' | 'prestamos' | 'analitica'
 
@@ -102,6 +103,8 @@ function Reportes() {
   }
 
   useEffect(() => { cargarDatos() }, [anio, mes])
+
+  useEffect(() => escucharDatosActualizados(cargarDatos), [anio, mes])
 
   useEffect(() => {
     getStatsPeriodo(periodoResumen, tipoUsuarioResumen, carreraResumen, materiaResumen).then(setStats)

@@ -8,6 +8,7 @@ import {
 import Logo from '../../components/Logo'
 import { getUsuarios, getLibros, esKioscoActivo, setKioscoActivo } from '../../api/biblioteca'
 import { useModo } from '../../context/ModoContext'
+import { escucharDatosActualizados } from '../../utils/refresco'
 
 interface Props {
   onAbrirRegistroManual: () => void
@@ -32,7 +33,7 @@ function SistemaHome({ onAbrirRegistroManual }: Props) {
     return () => clearInterval(t)
   }, [])
 
-  useEffect(() => {
+  const cargarContadores = () => {
     getLibros().then(libros => {
       setTotalLibros(libros.reduce((a: number, b: any) => a + b.totalEjemplares, 0))
     })
@@ -42,7 +43,12 @@ function SistemaHome({ onAbrirRegistroManual }: Props) {
       const total = todos.reduce((a: number, d: any) => a + d.prestamosActivos, 0)
       setPrestamosActivos(total)
     })
-  }, [])
+  }
+
+  useEffect(() => { cargarContadores() }, [])
+
+  // Se recarga cuando se completa un registro en cualquier parte del sistema
+  useEffect(() => escucharDatosActualizados(cargarContadores), [])
 
   const handleLogout = () => {
     localStorage.removeItem('biblioteca_token')

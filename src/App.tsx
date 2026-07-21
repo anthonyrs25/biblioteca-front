@@ -19,6 +19,7 @@ import RegistroManual from './components/RegistroManual'
 import { ModoProvider } from './context/ModoContext'
 import { conectarEscaneosRfid, esKioscoActivo } from './api/biblioteca'
 import { LLAVEROS_GENERALES, type PasoSelector } from './config/llaverosGenerales'
+import { avisarDatosActualizados } from './utils/refresco'
 
 // Escucha los escaneos del lector por SSE ("timbre"): el backend avisa al
 // instante, sin polling. Solo escucha si este dispositivo tiene el modo
@@ -184,6 +185,14 @@ function App() {
     setVista('docente')
   }
 
+  // Cierre tras completar un registro (uso, préstamo o devolución): además
+  // de cerrar el modal, avisa a las pantallas abiertas para que recarguen
+  // sus contadores sin que haga falta recargar el navegador.
+  const terminarRegistro = () => {
+    cerrarModal()
+    avisarDatosActualizados()
+  }
+
   return (
     <ConfigProvider locale={esES}>
       <AntApp>
@@ -217,21 +226,21 @@ function App() {
                   {vista === 'uso' && (
                     <UsoBiblioteca
                       docente={docenteActivo}
-                      onTerminar={cerrarModal}
+                      onTerminar={terminarRegistro}
                       enModal
                     />
                   )}
                   {vista === 'prestamo' && (
                     <Prestamo
                       docente={docenteActivo}
-                      onTerminar={cerrarModal}
+                      onTerminar={terminarRegistro}
                       enModal
                     />
                   )}
                   {vista === 'devolucion' && (
                     <Devolucion
                       docente={docenteActivo}
-                      onTerminar={cerrarModal}
+                      onTerminar={terminarRegistro}
                       enModal
                     />
                   )}
@@ -254,6 +263,8 @@ function App() {
                   pasoInicial={manualPaso ?? undefined}
                   onSeleccionar={usuario => {
                     cerrarManual()
+                    // Puede haberse creado un usuario nuevo en este paso
+                    avisarDatosActualizados()
                     handleDetectado(usuario)
                   }}
                 />
