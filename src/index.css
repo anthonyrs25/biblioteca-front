@@ -16,25 +16,30 @@ body {
 #root { min-height: 100vh; }
 .aurora-bg { display: none; }
 
-/* ── VARIABLES ── */
+/* ── VARIABLES ──
+   Turquesa del Instituto Sudamericano como color de marca.
+   Los tonos oscuros quedan solo para texto y gráficos, donde el
+   turquesa claro no alcanza contraste suficiente para leerse. */
 :root {
-  --teal:        #00796B;
-  --teal-dark:   #00695C;
-  --teal-deeper: #005F56;
-  --teal-light:  #E8F5F3;
-  --teal-mid:    #B2D8D3;
+  --marca:       #00A9A5;
+  --marca-hover: #00918D;
+  --teal:        #00A9A5;
+  --teal-dark:   #007D7A;
+  --teal-deeper: #006663;
+  --teal-light:  #E6F7F6;
+  --teal-mid:    #9FDEDC;
   --gray:        #78909C;
   --gray-light:  #ECEFF1;
   --gray-mid:    #CFD8DC;
-  --text-dark:   #1A2332;
-  --text-mid:    #4A5568;
-  --text-light:  #8896A5;
-  --border:      #E2E8F0;
+  --text-dark:   #12303A;
+  --text-mid:    #5A7480;
+  --text-light:  #8FA5AE;
+  --border:      #DCE8EA;
   --bg-card:     #FFFFFF;
-  --bg-page:     #F5F7FA;
-  --shadow-sm:   0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md:   0 4px 12px rgba(0,0,0,0.07), 0 2px 6px rgba(0,0,0,0.04);
-  --shadow-lg:   0 10px 28px rgba(0,0,0,0.09), 0 4px 10px rgba(0,0,0,0.05);
+  --bg-page:     #F7FAFB;
+  --shadow-sm:   0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.03);
+  --shadow-md:   0 4px 12px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.03);
+  --shadow-lg:   0 10px 28px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.04);
 }
 
 /* ── LANDING NAV ── */
@@ -551,18 +556,93 @@ body {
   border-bottom: 1px solid #E2E8F0;
 }
 
-/* Header fijo del sistema: siempre visible en las pantallas internas */
+/* ═══ HEADER FIJO DEL SISTEMA ═══ */
 .header-fijo {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid #E2E8F0;
-  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 32px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 8px rgba(0,0,0,0.04);
 }
 
-/* Las páginas internas ya no necesitan margen superior propio */
+.header-fijo .home-header-left { display: flex; align-items: center; gap: 16px; }
+
+/* El nombre junto al logo: turquesa de marca, no verde oscuro */
+.logo-texto,
+.home-header-left span,
+.home-header-left h1,
+.home-header-left h2 {
+  color: var(--marca) !important;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* ═══ DISTINCIÓN VISUAL BIBLIOTECARIO / ADMINISTRADOR ═══ */
+.modo-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  transition: background .25s, box-shadow .25s;
+}
+.modo-badge.bibliotecario {
+  background: var(--teal-light);
+  border: 1px solid var(--teal-mid);
+}
+.modo-badge.admin {
+  background: linear-gradient(135deg, #FFF4D6, #FFE9B0);
+  border: 1px solid #E0A800;
+  box-shadow: 0 0 0 3px rgba(224, 168, 0, .12);
+}
+/* Con el modo admin activo, una franja superior lo hace inconfundible */
+body.modo-admin .header-fijo { border-top: 3px solid #E0A800; }
+
+/* ═══ REPORTES: más aire y gráficos legibles ═══ */
 .reportes-page {
   padding-top: 0;
+  max-width: 1440px;
+  background: transparent;
 }
+
+.reportes-titulo { font-size: 28px; letter-spacing: -0.6px; }
+
+.kpi-grid {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  padding: 24px;
+  border-radius: 16px;
+  transition: transform .2s, box-shadow .2s;
+}
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 169, 165, .13);
+}
+.kpi-card .ant-statistic-content-value { font-size: 36px !important; font-weight: 800 !important; }
+
+.reporte-card { padding: 26px; border-radius: 16px; }
+.reporte-card-titulo { font-size: 15px; margin-bottom: 20px; }
+
+/* Los gráficos necesitan ancho: una sola columna hasta pantallas grandes */
+.reportes-grid-inferior {
+  grid-template-columns: 1fr;
+  gap: 22px;
+  margin-bottom: 22px;
+}
+@media (min-width: 1300px) {
+  .reportes-grid-inferior { grid-template-columns: 1fr 1fr; }
+}
+
+.carreras-lista { gap: 20px; }
+.carrera-bar-label strong { color: var(--marca); }

@@ -13,6 +13,7 @@ import { normalizarMaterias } from '../../utils/materias'
 import { escucharDatosActualizados } from '../../utils/refresco'
 import AsignacionAcademica from '../../components/AsignacionAcademica'
 import type { CarreraAsignada } from '../../components/AsignacionAcademica'
+import { calcularIniciales } from '../../utils/iniciales'
 
 const OPCIONES_CICLO = [1, 2, 3, 4].map(n => ({ value: n, label: `${n}° Ciclo` }))
 const OPCIONES_JORNADA = [
@@ -299,7 +300,7 @@ function GestionPersonas({ tipoPersona }: Props) {
       await actualizarUsuario(editando.id, {
         rfid: valores.rfid,
         nombre: valores.nombre,
-        iniciales: valores.iniciales,
+        iniciales: calcularIniciales(valores.nombre),
         ...(editarEsInvitado ? { tipoDocumento: valores.tipoDocumento, numeroDocumento: valores.numeroDocumento } : {}),
       })
 
@@ -331,7 +332,7 @@ function GestionPersonas({ tipoPersona }: Props) {
 
       await crearUsuario({
         nombre: valores.nombre,
-        iniciales: valores.iniciales,
+        iniciales: calcularIniciales(valores.nombre),
         rfid: valores.rfid || undefined,
         email: valores.email || undefined,
         tipoPersona: tipoFinal,
@@ -382,7 +383,7 @@ function GestionPersonas({ tipoPersona }: Props) {
         </Tag>
       ),
     }] : []),
-    ...(esTodos || esInvitado ? [] : esDocente ? [{ title: 'Iniciales', dataIndex: 'iniciales', key: 'iniciales', width: 90 }] : [
+    ...(esTodos || esInvitado ? [] : [
       { title: 'Correo', dataIndex: 'email', key: 'email', render: (email: string) => email || <span style={{ color: '#94A3B8' }}>—</span> },
     ]),
     {
@@ -575,9 +576,6 @@ function GestionPersonas({ tipoPersona }: Props) {
           <Form.Item name="nombre" label="Nombre completo" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="iniciales" label="Iniciales" rules={[{ required: true }]}>
-            <Input maxLength={3} />
-          </Form.Item>
           <Form.Item
             label="UID del llavero RFID"
             extra="Puedes escribirlo a mano, o usar el botón de la derecha y acercar el llavero al lector."
@@ -662,9 +660,6 @@ function GestionPersonas({ tipoPersona }: Props) {
             <>
               <Form.Item name="nombre" label="Nombre completo" rules={[{ required: true }]}>
                 <Input placeholder="Ej: Juan Pérez" />
-              </Form.Item>
-              <Form.Item name="iniciales" label="Iniciales" rules={[{ required: true }]}>
-                <Input placeholder="Ej: JP" maxLength={3} />
               </Form.Item>
               <Form.Item
                 name="email"

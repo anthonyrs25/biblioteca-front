@@ -7,6 +7,7 @@ import {
 import { getCarreras, getMateriasPorCarrera, buscarPorEmail, buscarPorDocumento, crearUsuario } from '../api/biblioteca'
 import type { PasoSelector } from '../config/llaverosGenerales'
 import { normalizarMaterias } from '../utils/materias'
+import { calcularIniciales } from '../utils/iniciales'
 import AsignacionAcademica from './AsignacionAcademica'
 import type { CarreraAsignada } from './AsignacionAcademica'
 
@@ -34,7 +35,6 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
   const [buscandoDocente, setBuscandoDocente] = useState(false)
   const [docenteNoEncontrado, setDocenteNoEncontrado] = useState(false)
   const [nombreDocente, setNombreDocente] = useState('')
-  const [inicialesDocente, setInicialesDocente] = useState('')
   const [asignacionDocente, setAsignacionDocente] = useState<CarreraAsignada[]>([])
   const [creandoDocente, setCreandoDocente] = useState(false)
 
@@ -114,7 +114,6 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
 
   const crearYRegistrarDocente = async () => {
     if (!nombreDocente.trim()) { message.warning('Ingresa el nombre'); return }
-    if (!inicialesDocente.trim()) { message.warning('Ingresa las iniciales'); return }
     const carreras = prepararCarreras(asignacionDocente)
     if (!carreras) return
 
@@ -122,7 +121,9 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
     try {
       await crearUsuario({
         nombre: nombreDocente.trim(),
-        iniciales: inicialesDocente.trim().toUpperCase(),
+        // Las iniciales son solo el avatar visual: se calculan del nombre
+        // en vez de pedírselas al bibliotecario en cada registro.
+        iniciales: calcularIniciales(nombreDocente),
         email: emailDocente.trim(),
         rol: 'usuario',
         tipoPersona: 'DOCENTE',
@@ -167,6 +168,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
     try {
       await crearUsuario({
         nombre: nombreEstudiante.trim(),
+        iniciales: calcularIniciales(nombreEstudiante),
         email: emailEstudiante.trim(),
         rol: 'usuario',
         tipoPersona: 'ESTUDIANTE',
@@ -203,6 +205,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
     try {
       await crearUsuario({
         nombre: nombreInvitado.trim(),
+        iniciales: calcularIniciales(nombreInvitado),
         tipoDocumento: tipoDocInvitado,
         numeroDocumento: numeroDocInvitado.trim(),
         rol: 'usuario',
@@ -228,21 +231,21 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
       {pasoManual === 'tipo' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <button className="opcion-btn" onClick={() => setPasoManual('docente')}>
-            <IdcardOutlined style={{ fontSize: 22, color: '#00796B' }} />
+            <IdcardOutlined style={{ fontSize: 22, color: 'var(--marca)' }} />
             <span>
               <span className="opcion-titulo">Docente</span>
               <span className="opcion-desc">Buscar por correo o registrar uno nuevo</span>
             </span>
           </button>
           <button className="opcion-btn" onClick={() => setPasoManual('estudiante')}>
-            <ReadOutlined style={{ fontSize: 22, color: '#00796B' }} />
+            <ReadOutlined style={{ fontSize: 22, color: 'var(--marca)' }} />
             <span>
               <span className="opcion-titulo">Estudiante</span>
               <span className="opcion-desc">Con correo institucional, carrera y ciclo</span>
             </span>
           </button>
           <button className="opcion-btn" onClick={() => setPasoManual('invitado')}>
-            <UserAddOutlined style={{ fontSize: 22, color: '#00796B' }} />
+            <UserAddOutlined style={{ fontSize: 22, color: 'var(--marca)' }} />
             <span>
               <span className="opcion-titulo">Invitado / externo</span>
               <span className="opcion-desc">Visitante que no pertenece al instituto</span>
@@ -275,16 +278,6 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
               <div className="form-field">
                 <label className="field-label">Nombre completo</label>
                 <Input value={nombreDocente} onChange={e => setNombreDocente(e.target.value)} size="large" />
-              </div>
-              <div className="form-field">
-                <label className="field-label">Iniciales</label>
-                <Input
-                  value={inicialesDocente}
-                  onChange={e => setInicialesDocente(e.target.value)}
-                  maxLength={3}
-                  placeholder="Ej: HT"
-                  size="large"
-                />
               </div>
 
               <AsignacionAcademica

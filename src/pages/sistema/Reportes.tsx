@@ -22,7 +22,9 @@ import { escucharDatosActualizados } from '../../utils/refresco'
 
 type TabKey = 'resumen' | 'visitas' | 'prestamos' | 'analitica'
 
-const COLORES_GRAFICO = ['#00695C', '#00897B', '#26A69A', '#4DB6AC', '#80CBC4', '#B2DFDB', '#004D40', '#00796B']
+// Escala turquesa institucional. Antes eran verdes petróleo (#00695C),
+// que no corresponden al color de marca del instituto.
+const COLORES_GRAFICO = ['#007D7A', '#00A9A5', '#4FC3C0', '#85D6D3', '#B5E6E4', '#00918D', '#2FB5B2', '#6BCECB']
 
 const ETIQUETA_TIPO: Record<string, string> = {
   DOCENTE: 'Docente',
@@ -496,7 +498,7 @@ function Reportes() {
   // formulario vacío para llenar a mano si el sistema no está disponible.
   const barraImpresion = (hoja: 'uso' | 'prestamos') => (
     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16, padding: '12px 16px', background: '#E0F2F1', borderRadius: 10, border: '1px solid #B2DFDB' }}>
-      <PrinterOutlined style={{ color: '#00796B', fontSize: 18 }} />
+      <PrinterOutlined style={{ color: '#00A9A5', fontSize: 18 }} />
       <span style={{ fontSize: 13, color: '#4A5568', fontWeight: 600 }}>Imprimir hoja:</span>
       <Select
         value={tipoHoja}
@@ -515,7 +517,7 @@ function Reportes() {
         icon={<PrinterOutlined />}
         loading={imprimiendo}
         onClick={() => handleImprimirDatos(hoja)}
-        style={{ background: '#00796B' }}
+        style={{ background: '#00A9A5' }}
       >
         Hoja con datos
       </Button>
