@@ -1,36 +1,37 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Statistic, Switch, Tag } from 'antd'
-import {
-  WifiOutlined, BookOutlined, SwapOutlined, TeamOutlined,
-  LogoutOutlined, BarChartOutlined, SettingOutlined, CrownOutlined,
-} from '@ant-design/icons'
-import Logo from '../../components/Logo'
-import { getUsuarios, getLibros, esKioscoActivo, setKioscoActivo } from '../../api/biblioteca'
-import { useModo } from '../../context/ModoContext'
+import { Statistic } from 'antd'
+import { WifiOutlined, BookOutlined, SwapOutlined, TeamOutlined } from '@ant-design/icons'
+import { getUsuarios, getLibros, esKioscoActivo } from '../../api/biblioteca'
 import { escucharDatosActualizados } from '../../utils/refresco'
 
-interface Props {
-  onAbrirRegistroManual: () => void
-}
-
-function SistemaHome({ onAbrirRegistroManual }: Props) {
+// El header con los accesos del sistema (Reportes, Registro manual, Gestión,
+// interruptor del lector y Salir) vive ahora en App como componente global,
+// fijo en todas las pantallas internas. Aquí solo queda el contenido propio
+// de la pantalla de inicio.
+function SistemaHome() {
   const navigate = useNavigate()
-  const { esAdmin, modoAdminActivo, activarModoAdmin, volverAModoBibliotecario } = useModo()
   const [pulso, setPulso] = useState(false)
   const [totalLibros, setTotalLibros] = useState(0)
   const [prestamosActivos, setPrestamosActivos] = useState(0)
   const [totalUsuarios, setTotalUsuarios] = useState(0)
   const [kiosco, setKiosco] = useState(esKioscoActivo())
 
-  const cambiarKiosco = (activo: boolean) => {
-    setKioscoActivo(activo)
-    setKiosco(activo)
-  }
-
   useEffect(() => {
     const t = setInterval(() => setPulso(p => !p), 1500)
     return () => clearInterval(t)
+  }, [])
+
+  // El interruptor del lector vive en el header, pero el mensaje del hero
+  // debe reflejar su estado: se escucha el aviso que emite al cambiar.
+  useEffect(() => {
+    const actualizar = () => setKiosco(esKioscoActivo())
+    window.addEventListener('kiosco-cambiado', actualizar)
+    window.addEventListener('storage', actualizar)
+    return () => {
+      window.removeEventListener('kiosco-cambiado', actualizar)
+      window.removeEventListener('storage', actualizar)
+    }
   }, [])
 
   const cargarContadores = () => {
@@ -50,51 +51,8 @@ function SistemaHome({ onAbrirRegistroManual }: Props) {
   // Se recarga cuando se completa un registro en cualquier parte del sistema
   useEffect(() => escucharDatosActualizados(cargarContadores), [])
 
-  const handleLogout = () => {
-    localStorage.removeItem('biblioteca_token')
-    localStorage.removeItem('biblioteca_usuario')
-    navigate('/')
-  }
-
   return (
     <div className="home-page">
-      <div className="home-header">
-        <div className="home-header-left"><Logo /></div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
-          {esAdmin && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: modoAdminActivo ? '#FEF3C7' : '#F5F7FA', padding: '6px 12px', borderRadius: 10 }}>
-              <Tag color={modoAdminActivo ? 'gold' : 'default'} style={{ margin: 0 }}>
-                {modoAdminActivo ? <><CrownOutlined /> Administrador</> : 'Bibliotecario'}
-              </Tag>
-              <Switch
-                checked={modoAdminActivo}
-                onChange={checked => checked ? activarModoAdmin() : volverAModoBibliotecario()}
-                size="small"
-              />
-            </div>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: kiosco ? '#E0F2F1' : '#F5F7FA', padding: '6px 12px', borderRadius: 10 }}>
-            <Tag color={kiosco ? 'cyan' : 'default'} style={{ margin: 0 }}>
-              <WifiOutlined style={{ marginRight: 4 }} />
-              Lector RFID
-            </Tag>
-            <Switch checked={kiosco} onChange={cambiarKiosco} size="small" />
-          </div>
-          <Button onClick={() => navigate('/sistema/reportes')} icon={<BarChartOutlined />} className="btn-reportes">
-            Reportes
-          </Button>
-          <Button onClick={onAbrirRegistroManual} icon={<TeamOutlined />} className="btn-reportes">
-            Registro manual
-          </Button>
-          <Button onClick={() => navigate('/sistema/gestion')} icon={<SettingOutlined />} className="btn-reportes">
-            Gestión
-          </Button>
-          <Button onClick={handleLogout} icon={<LogoutOutlined />} className="btn-salir" style={{ marginLeft: 'auto' }}>
-            Salir
-          </Button>
-        </div>
-      </div>
-
       <div className="home-hero">
         <div className="hero-left">
           <div className="hero-badge">
@@ -106,7 +64,7 @@ function SistemaHome({ onAbrirRegistroManual }: Props) {
           <p className="hero-subtitle">
             {kiosco
               ? 'Acerque su tarjeta RFID al lector para registrar préstamos, devoluciones y uso de sala.'
-              : 'Active el interruptor "Lector RFID" para que este dispositivo reciba los escaneos del lector.'}
+              : 'Active el interruptor "Lector RFID" del encabezado para que este dispositivo reciba los escaneos.'}
           </p>
         </div>
         <div className="hero-right">

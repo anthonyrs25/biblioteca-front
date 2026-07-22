@@ -550,3 +550,19 @@ body {
   backdrop-filter: blur(10px);
   border-bottom: 1px solid #E2E8F0;
 }
+
+/* Header fijo del sistema: siempre visible en las pantallas internas */
+.header-fijo {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #E2E8F0;
+  margin-bottom: 20px;
+}
+
+/* Las páginas internas ya no necesitan margen superior propio */
+.reportes-page {
+  padding-top: 0;
+}

@@ -20,6 +20,7 @@ import { ModoProvider } from './context/ModoContext'
 import { conectarEscaneosRfid, esKioscoActivo } from './api/biblioteca'
 import { LLAVEROS_GENERALES, type PasoSelector } from './config/llaverosGenerales'
 import { avisarDatosActualizados } from './utils/refresco'
+import HeaderSistema from './components/HeaderSistema'
 
 // Escucha los escaneos del lector por SSE ("timbre"): el backend avisa al
 // instante, sin polling. Solo escucha si este dispositivo tiene el modo
@@ -275,38 +276,28 @@ function App() {
               <Route path="/" element={<Landing />} />
               <Route path="/catalogo" element={<Catalogo />} />
               <Route path="/login" element={<Login />} />
-              <Route path="/sistema" element={
+
+              {/* Rutas del sistema: todas comparten el header fijo */}
+              <Route path="/sistema/*" element={
                 <ProtectedRoute>
-                  <SistemaHome onAbrirRegistroManual={() => abrirManual()} />
+                  <>
+                    <HeaderSistema onAbrirRegistroManual={() => abrirManual()} />
+                    <Routes>
+                      <Route path="/" element={<SistemaHome />} />
+                      <Route path="reportes" element={<Reportes />} />
+                      <Route path="gestion" element={<Gestion />} />
+                      <Route path="gestion/libros" element={<GestionLibros />} />
+                      <Route path="gestion/usuarios" element={<GestionPersonas />} />
+                      <Route path="gestion/docentes" element={<GestionPersonas tipoPersona="DOCENTE" />} />
+                      <Route path="gestion/estudiantes" element={<GestionPersonas tipoPersona="ESTUDIANTE" />} />
+                      <Route path="gestion/invitados" element={<GestionPersonas tipoPersona="INVITADO" />} />
+                      <Route path="gestion/staff" element={<GestionStaff />} />
+                    </Routes>
+                  </>
                 </ProtectedRoute>
-
-              } />
-
-              <Route path="/sistema/reportes" element={
-                <ProtectedRoute><Reportes /></ProtectedRoute>
-              } />
-              <Route path="/sistema/gestion" element={
-                <ProtectedRoute><Gestion /></ProtectedRoute>
-              } />
-              <Route path="/sistema/gestion/libros" element={
-                <ProtectedRoute><GestionLibros /></ProtectedRoute>
-              } />
-              <Route path="/sistema/gestion/usuarios" element={
-                <ProtectedRoute><GestionPersonas /></ProtectedRoute>
-              } />
-              <Route path="/sistema/gestion/docentes" element={
-                <ProtectedRoute><GestionPersonas tipoPersona="DOCENTE" /></ProtectedRoute>
-              } />
-              <Route path="/sistema/gestion/estudiantes" element={
-                <ProtectedRoute><GestionPersonas tipoPersona="ESTUDIANTE" /></ProtectedRoute>
-              } />
-              <Route path="/sistema/gestion/invitados" element={
-                <ProtectedRoute><GestionPersonas tipoPersona="INVITADO" /></ProtectedRoute>
-              } />
-              <Route path="/sistema/gestion/staff" element={
-                <ProtectedRoute><GestionStaff /></ProtectedRoute>
               } />
             </Routes>
+
           </ModoProvider>
         </BrowserRouter>
       </AntApp>
