@@ -245,6 +245,9 @@ export const getComparativaPorTipo = (periodo: string) =>
 export const getMateriasDisponibles = () =>
   api.get('/registros/materias-disponibles').then(r => r.data)
 
+export const getMateriasPorCarrera = () =>
+  api.get('/registros/materias-por-carrera').then(r => r.data)
+
 export const getRegistrosMes = (anio: number, mes: number) =>
   api.get(`/registros/mes/${anio}/${mes}`).then(r => r.data)
 

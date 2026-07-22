@@ -1,20 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Button, Input, Empty, Select, App, Divider } from 'antd'
+import { Button, Input, Select, App } from 'antd'
 import {
-  SearchOutlined, IdcardOutlined, ReadOutlined, UserAddOutlined,
+  IdcardOutlined, ReadOutlined, UserAddOutlined,
   ArrowLeftOutlined, MailOutlined,
 } from '@ant-design/icons'
-import { getUsuarios, getCarreras, getMateriasDisponibles, buscarPorEmail, buscarPorDocumento, crearUsuario } from '../api/biblioteca'
+import { getCarreras, getMateriasPorCarrera, buscarPorEmail, buscarPorDocumento, crearUsuario } from '../api/biblioteca'
 import type { PasoSelector } from '../config/llaverosGenerales'
 import { normalizarMaterias } from '../utils/materias'
-
-const OPCIONES_CICLO = [1, 2, 3, 4].map(n => ({ value: n, label: `${n}° Ciclo` }))
-
-const JORNADAS = [
-  { value: 'matutino', label: '🌅 Matutino' },
-  { value: 'vespertino', label: '🌇 Vespertino' },
-  { value: 'nocturno', label: '🌙 Nocturno' },
-]
+import AsignacionAcademica from './AsignacionAcademica'
+import type { CarreraAsignada } from './AsignacionAcademica'
 
 type PasoManual = 'tipo' | PasoSelector
 
@@ -32,21 +26,16 @@ interface Props {
 function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
   const { message } = App.useApp()
   const [pasoManual, setPasoManual] = useState<PasoManual>(pasoInicial ?? 'tipo')
-  const [docentes, setDocentes] = useState<any[]>([])
   const [carrerasDisponibles, setCarrerasDisponibles] = useState<string[]>([])
-  const [materiasSugeridas, setMateriasSugeridas] = useState<string[]>([])
+  const [materiasPorCarrera, setMateriasPorCarrera] = useState<Record<string, string[]>>({})
 
   // ── Docente ──
-  const [busquedaManual, setBusquedaManual] = useState('')
   const [emailDocente, setEmailDocente] = useState('')
   const [buscandoDocente, setBuscandoDocente] = useState(false)
   const [docenteNoEncontrado, setDocenteNoEncontrado] = useState(false)
   const [nombreDocente, setNombreDocente] = useState('')
   const [inicialesDocente, setInicialesDocente] = useState('')
-  const [carreraDocente, setCarreraDocente] = useState<string | undefined>()
-  const [cicloDocente, setCicloDocente] = useState<number | undefined>()
-  const [jornadaDocente, setJornadaDocente] = useState<string | undefined>()
-  const [materiasDocente, setMateriasDocente] = useState<string[]>([])
+  const [asignacionDocente, setAsignacionDocente] = useState<CarreraAsignada[]>([])
   const [creandoDocente, setCreandoDocente] = useState(false)
 
   // ── Estudiante ──
@@ -54,10 +43,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
   const [buscandoEstudiante, setBuscandoEstudiante] = useState(false)
   const [estudianteNoEncontrado, setEstudianteNoEncontrado] = useState(false)
   const [nombreEstudiante, setNombreEstudiante] = useState('')
-  const [carreraEstudiante, setCarreraEstudiante] = useState<string | undefined>()
-  const [cicloEstudiante, setCicloEstudiante] = useState<number | undefined>()
-  const [jornadaEstudiante, setJornadaEstudiante] = useState<string | undefined>()
-  const [materiasEstudiante, setMateriasEstudiante] = useState<string[]>([])
+  const [asignacionEstudiante, setAsignacionEstudiante] = useState<CarreraAsignada[]>([])
   const [creandoEstudiante, setCreandoEstudiante] = useState(false)
 
   // ── Invitado ──
@@ -69,21 +55,45 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
 
   useEffect(() => {
     getCarreras().then((data: any[]) => setCarrerasDisponibles(data.map(c => c.nombre)))
-    getUsuarios('DOCENTE').then((data: any[]) =>
-      setDocentes(data.filter((d: any) => d.rol === 'usuario'))
-    )
-    getMateriasDisponibles().then(setMateriasSugeridas).catch(() => setMateriasSugeridas([]))
+    getMateriasPorCarrera().then(setMateriasPorCarrera).catch(() => setMateriasPorCarrera({}))
   }, [])
 
-  const docentesFiltrados = docentes.filter((d: any) =>
-    d.nombre?.toLowerCase().includes(busquedaManual.toLowerCase()),
-  )
-
-  const opcionesMaterias = [...materiasSugeridas].sort().map(m => ({ value: m, label: m }))
+  // Valida la asignación académica y la deja lista para enviar al backend:
+  // materias normalizadas y sin ciclos vacíos.
+  const prepararCarreras = (asignacion: CarreraAsignada[]): any[] | null => {
+    if (asignacion.length === 0) {
+      message.warning('Selecciona al menos una carrera')
+      return null
+    }
+    for (const carrera of asignacion) {
+      if (carrera.ciclos.length === 0) {
+        message.warning(`Agrega al menos un ciclo en ${carrera.nombre}`)
+        return null
+      }
+      for (const ciclo of carrera.ciclos) {
+        if (!ciclo.jornada) {
+          message.warning(`Selecciona la jornada del ${ciclo.numero}° ciclo en ${carrera.nombre}`)
+          return null
+        }
+        if (normalizarMaterias(ciclo.materias).length === 0) {
+          message.warning(`Agrega al menos una materia en el ${ciclo.numero}° ciclo de ${carrera.nombre}`)
+          return null
+        }
+      }
+    }
+    return asignacion.map(c => ({
+      nombre: c.nombre,
+      ciclos: c.ciclos.map(ci => ({
+        numero: ci.numero,
+        jornada: ci.jornada,
+        materias: normalizarMaterias(ci.materias),
+      })),
+    }))
+  }
 
   // ── Flujo Docente ──
-  // Igual que el de estudiante: el correo institucional es el identificador
-  // único, así no se crean docentes duplicados por diferencias de escritura.
+  // El correo institucional es el identificador único, así no se crean
+  // docentes duplicados por diferencias de escritura del nombre.
   const buscarDocente = async () => {
     if (!emailDocente.trim()) { message.warning('Ingresa el correo institucional'); return }
     setBuscandoDocente(true)
@@ -105,11 +115,8 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
   const crearYRegistrarDocente = async () => {
     if (!nombreDocente.trim()) { message.warning('Ingresa el nombre'); return }
     if (!inicialesDocente.trim()) { message.warning('Ingresa las iniciales'); return }
-    if (!carreraDocente) { message.warning('Selecciona la carrera'); return }
-    if (!cicloDocente) { message.warning('Selecciona el ciclo'); return }
-    if (!jornadaDocente) { message.warning('Selecciona la jornada'); return }
-    const materiasLimpias = normalizarMaterias(materiasDocente)
-    if (materiasLimpias.length === 0) { message.warning('Agrega al menos una materia'); return }
+    const carreras = prepararCarreras(asignacionDocente)
+    if (!carreras) return
 
     setCreandoDocente(true)
     try {
@@ -119,14 +126,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
         email: emailDocente.trim(),
         rol: 'usuario',
         tipoPersona: 'DOCENTE',
-        carreras: [{
-          nombre: carreraDocente,
-          ciclos: [{
-            numero: cicloDocente,
-            materias: materiasLimpias,
-            jornada: jornadaDocente,
-          }],
-        }],
+        carreras,
       })
       // Se vuelve a pedir con las relaciones completas (carreras/ciclos)
       // para que el panel de uso/préstamo funcione de inmediato.
@@ -160,11 +160,8 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
 
   const crearYRegistrarEstudiante = async () => {
     if (!nombreEstudiante.trim()) { message.warning('Ingresa el nombre'); return }
-    if (!carreraEstudiante) { message.warning('Selecciona la carrera'); return }
-    if (!cicloEstudiante) { message.warning('Selecciona el ciclo'); return }
-    if (!jornadaEstudiante) { message.warning('Selecciona la jornada'); return }
-    const materiasLimpias = normalizarMaterias(materiasEstudiante)
-    if (materiasLimpias.length === 0) { message.warning('Agrega al menos una materia'); return }
+    const carreras = prepararCarreras(asignacionEstudiante)
+    if (!carreras) return
 
     setCreandoEstudiante(true)
     try {
@@ -173,14 +170,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
         email: emailEstudiante.trim(),
         rol: 'usuario',
         tipoPersona: 'ESTUDIANTE',
-        carreras: [{
-          nombre: carreraEstudiante,
-          ciclos: [{
-            numero: cicloEstudiante,
-            materias: materiasLimpias,
-            jornada: jornadaEstudiante,
-          }],
-        }],
+        carreras,
       })
       const creado = await buscarPorEmail(emailEstudiante.trim())
       onSeleccionar(creado)
@@ -241,7 +231,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
             <IdcardOutlined style={{ fontSize: 22, color: '#00796B' }} />
             <span>
               <span className="opcion-titulo">Docente</span>
-              <span className="opcion-desc">Buscar por nombre o registrar uno nuevo</span>
+              <span className="opcion-desc">Buscar por correo o registrar uno nuevo</span>
             </span>
           </button>
           <button className="opcion-btn" onClick={() => setPasoManual('estudiante')}>
@@ -262,144 +252,55 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
       )}
 
       {pasoManual === 'docente' && (
-        <>
-          <Input
-            placeholder="Buscar docente por nombre..."
-            prefix={<SearchOutlined style={{ color: '#9CA3AF' }} />}
-            value={busquedaManual}
-            onChange={e => setBusquedaManual(e.target.value)}
-            size="large"
-            autoFocus
-            allowClear
-            style={{ marginBottom: 16 }}
-          />
-          {docentesFiltrados.length === 0 ? (
-            <Empty
-              description={busquedaManual ? 'Ningún docente coincide' : 'Aún no hay docentes registrados'}
-              style={{ margin: '12px 0' }}
+        <div className="form-field">
+          <label className="field-label">Correo institucional</label>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <Input
+              placeholder="nombre@sudamericano.edu.ec"
+              prefix={<MailOutlined style={{ color: '#9CA3AF' }} />}
+              value={emailDocente}
+              onChange={e => { setEmailDocente(e.target.value); setDocenteNoEncontrado(false) }}
+              size="large"
+              autoFocus
+              onPressEnter={buscarDocente}
             />
-          ) : (
-            <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {docentesFiltrados.map((docente: any) => (
-                <button
-                  key={docente.id}
-                  className="opcion-btn"
-                  onClick={() => onSeleccionar(docente)}
-                  style={{ textAlign: 'left' }}
-                >
-                  <span style={{
-                    width: 40, height: 40, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #00695C, #00897B)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#fff', fontSize: 14, fontWeight: 700, flexShrink: 0,
-                  }}>
-                    {docente.iniciales}
-                  </span>
-                  <span>
-                    <span className="opcion-titulo">{docente.nombre}</span>
-                    <span className="opcion-desc">
-                      {docente.carreras?.map((dc: any) => dc.carrera?.nombre).filter(Boolean).join(' · ') || 'Sin carrera asignada'}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          <Divider style={{ margin: '18px 0 12px' }}>¿No aparece en la lista?</Divider>
-
-          <div className="form-field">
-            <label className="field-label">Correo institucional</label>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <Input
-                placeholder="nombre@sudamericano.edu.ec"
-                prefix={<MailOutlined style={{ color: '#9CA3AF' }} />}
-                value={emailDocente}
-                onChange={e => { setEmailDocente(e.target.value); setDocenteNoEncontrado(false) }}
-                size="large"
-              />
-              <Button size="large" onClick={buscarDocente} loading={buscandoDocente}>Buscar</Button>
-            </div>
-
-            {docenteNoEncontrado && (
-              <>
-                <p style={{ fontSize: 13, color: '#94A3B8', margin: '4px 0 16px' }}>
-                  No encontramos este correo — completa los datos para registrarlo por primera vez.
-                </p>
-                <div className="form-field">
-                  <label className="field-label">Nombre completo</label>
-                  <Input value={nombreDocente} onChange={e => setNombreDocente(e.target.value)} size="large" />
-                </div>
-                <div className="form-field">
-                  <label className="field-label">Iniciales</label>
-                  <Input
-                    value={inicialesDocente}
-                    onChange={e => setInicialesDocente(e.target.value)}
-                    maxLength={3}
-                    placeholder="Ej: HT"
-                    size="large"
-                  />
-                </div>
-                <div className="form-field">
-                  <label className="field-label">Carrera</label>
-                  <Select
-                    placeholder="Selecciona la carrera"
-                    value={carreraDocente}
-                    onChange={setCarreraDocente}
-                    options={carrerasDisponibles.map(c => ({ value: c, label: c }))}
-                    style={{ width: '100%' }}
-                    size="large"
-                  />
-                </div>
-                <div className="form-field">
-                  <label className="field-label">Ciclo</label>
-                  <Select
-                    placeholder="Selecciona el ciclo"
-                    value={cicloDocente}
-                    onChange={setCicloDocente}
-                    options={OPCIONES_CICLO}
-                    style={{ width: '100%' }}
-                    size="large"
-                  />
-                </div>
-                <div className="form-field">
-                  <label className="field-label">Jornada</label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {JORNADAS.map(j => (
-                      <Button
-                        key={j.value}
-                        type={jornadaDocente === j.value ? 'primary' : 'default'}
-                        style={jornadaDocente === j.value ? { background: '#00796B', borderColor: '#00796B' } : {}}
-                        onClick={() => setJornadaDocente(j.value)}
-                      >
-                        {j.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                <div className="form-field">
-                  <label className="field-label">Materias que dicta</label>
-                  <Select
-                    mode="tags"
-                    placeholder="Escribe y elige de las sugerencias, o presiona Enter"
-                    value={materiasDocente}
-                    onChange={setMateriasDocente}
-                    options={opcionesMaterias}
-                    tokenSeparators={[',']}
-                    style={{ width: '100%' }}
-                    size="large"
-                  />
-                  <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
-                    Elige de las materias existentes para evitar duplicados; si es nueva, escríbela y presiona Enter.
-                  </p>
-                </div>
-                <Button className="btn-confirmar" block size="large" onClick={crearYRegistrarDocente} loading={creandoDocente} style={{ marginTop: 8 }}>
-                  Registrar e ingresar
-                </Button>
-              </>
-            )}
+            <Button size="large" onClick={buscarDocente} loading={buscandoDocente}>Buscar</Button>
           </div>
-        </>
+
+          {docenteNoEncontrado && (
+            <>
+              <p style={{ fontSize: 13, color: '#94A3B8', margin: '4px 0 16px' }}>
+                No encontramos este correo — completa los datos para registrarlo por primera vez.
+              </p>
+              <div className="form-field">
+                <label className="field-label">Nombre completo</label>
+                <Input value={nombreDocente} onChange={e => setNombreDocente(e.target.value)} size="large" />
+              </div>
+              <div className="form-field">
+                <label className="field-label">Iniciales</label>
+                <Input
+                  value={inicialesDocente}
+                  onChange={e => setInicialesDocente(e.target.value)}
+                  maxLength={3}
+                  placeholder="Ej: HT"
+                  size="large"
+                />
+              </div>
+
+              <AsignacionAcademica
+                valor={asignacionDocente}
+                onChange={setAsignacionDocente}
+                carrerasDisponibles={carrerasDisponibles}
+                materiasPorCarrera={materiasPorCarrera}
+                titulo="Carreras en las que dicta"
+              />
+
+              <Button className="btn-confirmar" block size="large" onClick={crearYRegistrarDocente} loading={creandoDocente} style={{ marginTop: 8 }}>
+                Registrar e ingresar
+              </Button>
+            </>
+          )}
+        </div>
       )}
 
       {pasoManual === 'estudiante' && (
@@ -413,6 +314,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
               onChange={e => { setEmailEstudiante(e.target.value); setEstudianteNoEncontrado(false) }}
               size="large"
               autoFocus
+              onPressEnter={buscarEstudiante}
             />
             <Button size="large" onClick={buscarEstudiante} loading={buscandoEstudiante}>Buscar</Button>
           </div>
@@ -426,59 +328,15 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
                 <label className="field-label">Nombre completo</label>
                 <Input value={nombreEstudiante} onChange={e => setNombreEstudiante(e.target.value)} size="large" />
               </div>
-              <div className="form-field">
-                <label className="field-label">Carrera</label>
-                <Select
-                  placeholder="Selecciona la carrera"
-                  value={carreraEstudiante}
-                  onChange={setCarreraEstudiante}
-                  options={carrerasDisponibles.map(c => ({ value: c, label: c }))}
-                  style={{ width: '100%' }}
-                  size="large"
-                />
-              </div>
-              <div className="form-field">
-                <label className="field-label">Ciclo</label>
-                <Select
-                  placeholder="Selecciona el ciclo"
-                  value={cicloEstudiante}
-                  onChange={setCicloEstudiante}
-                  options={OPCIONES_CICLO}
-                  style={{ width: '100%' }}
-                  size="large"
-                />
-              </div>
-              <div className="form-field">
-                <label className="field-label">Jornada</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {JORNADAS.map(j => (
-                    <Button
-                      key={j.value}
-                      type={jornadaEstudiante === j.value ? 'primary' : 'default'}
-                      style={jornadaEstudiante === j.value ? { background: '#00796B', borderColor: '#00796B' } : {}}
-                      onClick={() => setJornadaEstudiante(j.value)}
-                    >
-                      {j.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              <div className="form-field">
-                <label className="field-label">Materias que cursa</label>
-                <Select
-                  mode="tags"
-                  placeholder="Escribe y elige de las sugerencias, o presiona Enter"
-                  value={materiasEstudiante}
-                  onChange={setMateriasEstudiante}
-                  options={opcionesMaterias}
-                  tokenSeparators={[',']}
-                  style={{ width: '100%' }}
-                  size="large"
-                />
-                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
-                  Elige de las materias existentes para evitar duplicados; si es nueva, escríbela y presiona Enter.
-                </p>
-              </div>
+
+              <AsignacionAcademica
+                valor={asignacionEstudiante}
+                onChange={setAsignacionEstudiante}
+                carrerasDisponibles={carrerasDisponibles}
+                materiasPorCarrera={materiasPorCarrera}
+                titulo="Carreras que cursa"
+              />
+
               <Button className="btn-confirmar" block size="large" onClick={crearYRegistrarEstudiante} loading={creandoEstudiante} style={{ marginTop: 8 }}>
                 Registrar e ingresar
               </Button>

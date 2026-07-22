@@ -540,3 +540,13 @@ body {
 .actividad-item:last-child { border-bottom: none; padding-bottom: 0; }
 
 .ant-badge-status-text { color: var(--text-mid) !important; }
+
+/* Header fijo: las opciones del sistema quedan siempre accesibles */
+.home-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #E2E8F0;
+}
