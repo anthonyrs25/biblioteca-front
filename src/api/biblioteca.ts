@@ -295,4 +295,11 @@ export const actualizarActividad = (id: number, data: { nombre?: string; icono?:
 export const eliminarActividad = (id: number) =>
   api.delete(`/actividades/${id}`).then(r => r.data)
 
+// Reemplaza toda la asignación académica en una sola llamada atómica.
+// Sustituye la secuencia agregar/quitar carrera + actualizar ciclos.
+export const reemplazarAsignacion = (
+  id: number,
+  carreras: { nombre: string; ciclos: { numero: number; jornada?: string; materias: string[] }[] }[],
+) => api.put(`/usuarios/${id}/asignacion`, { carreras }).then(r => r.data)
+
 export default api

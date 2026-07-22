@@ -4,8 +4,8 @@ import { Table, Button, Modal, Form, Input, Select, App, Tag, Divider, Popconfir
 import { ArrowLeftOutlined, EditOutlined, TeamOutlined, CreditCardOutlined, PlusOutlined, WifiOutlined, DeleteOutlined, CrownOutlined, FilterOutlined } from '@ant-design/icons'
 import { useModo } from '../../context/ModoContext'
 import {
-  getUsuarios, actualizarUsuario, crearUsuario, actualizarCiclosUsuario,
-  agregarCarreraUsuario, quitarCarreraUsuario, getUltimoEscaneoDesde, getUsuarioByRfid,
+  getUsuarios, actualizarUsuario, crearUsuario, reemplazarAsignacion,
+  getUltimoEscaneoDesde, getUsuarioByRfid,
   cambiarRolUsuario, eliminarUsuario, getPapeleraUsuarios, restaurarUsuario, getCarreras,
   getMateriasPorCarrera,
 } from '../../api/biblioteca'
@@ -59,7 +59,6 @@ function GestionPersonas({ tipoPersona }: Props) {
   const [modalCrear, setModalCrear] = useState(false)
   const [editando, setEditando] = useState<any | null>(null)
   const [asignacionEditar, setAsignacionEditar] = useState<CarreraAsignada[]>([])
-  const [carrerasOriginales, setCarrerasOriginales] = useState<string[]>([])
   const [asignacionCrear, setAsignacionCrear] = useState<CarreraAsignada[]>([])
   const [formEditar] = Form.useForm()
   const [formCrear] = Form.useForm()
@@ -216,9 +215,7 @@ function GestionPersonas({ tipoPersona }: Props) {
 
   const abrirEditar = (persona: any) => {
     setEditando(persona)
-    const iniciales = construirAsignacion(persona)
-    setAsignacionEditar(iniciales)
-    setCarrerasOriginales(iniciales.map(c => c.nombre))
+    setAsignacionEditar(construirAsignacion(persona))
     formEditar.setFieldsValue({
       rfid: persona.rfid,
       nombre: persona.nombre,
@@ -307,24 +304,9 @@ function GestionPersonas({ tipoPersona }: Props) {
       })
 
       if (!editarEsInvitado && carreras) {
-        const nombresActuales = carreras.map((c: any) => c.nombre)
-
-        // Carreras que se quitaron desde que se abrió el modal
-        for (const nombreOriginal of carrerasOriginales) {
-          if (!nombresActuales.includes(nombreOriginal)) {
-            await quitarCarreraUsuario(editando.id, nombreOriginal)
-          }
-        }
-        // Carreras nuevas que no existían al abrir el modal
-        for (const nombreActual of nombresActuales) {
-          if (!carrerasOriginales.includes(nombreActual)) {
-            await agregarCarreraUsuario(editando.id, nombreActual)
-          }
-        }
-        // Ciclos y materias de cada carrera que quedó al final
-        for (const carrera of carreras) {
-          await actualizarCiclosUsuario(editando.id, carrera.nombre, carrera.ciclos)
-        }
+        // Una sola llamada atómica: el backend resuelve altas, bajas y
+        // modificaciones de carreras, ciclos y materias en una transacción.
+        await reemplazarAsignacion(editando.id, carreras)
       }
 
       message.success(`${etiquetaDe(tipoEditando)} actualizado`)
@@ -450,7 +432,11 @@ function GestionPersonas({ tipoPersona }: Props) {
           </Button>
           <Popconfirm
             title="¿Eliminar este registro?"
-            description="Se moverá a la papelera — se puede restaurar después."
+            description={
+              persona.rfid
+                ? 'Se moverá a la papelera y su llavero RFID quedará libre para otra persona. Al restaurarlo habrá que vincularle un llavero de nuevo.'
+                : 'Se moverá a la papelera — se puede restaurar después.'
+            }
             onConfirm={() => handleEliminar(persona.id)}
             okText="Sí, eliminar" cancelText="Cancelar"
           >
