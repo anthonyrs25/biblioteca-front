@@ -281,4 +281,18 @@ export const getRankingPrestamosLibros = (periodo?: string) =>
 export const getRankingPrestamosUsuarios = (periodo?: string, tipoPersona?: string) =>
   api.get('/prestamos/ranking-usuarios', { params: { periodo, tipoPersona } }).then(r => r.data)
 
+// ───── ACTIVIDADES (catálogo editable para el registro de uso) ─────
+
+export const getActividades = () =>
+  api.get('/actividades').then(r => r.data)
+
+export const crearActividad = (nombre: string, icono?: string) =>
+  api.post('/actividades', { nombre, icono }).then(r => r.data)
+
+export const actualizarActividad = (id: number, data: { nombre?: string; icono?: string; orden?: number }) =>
+  api.patch(`/actividades/${id}`, data).then(r => r.data)
+
+export const eliminarActividad = (id: number) =>
+  api.delete(`/actividades/${id}`).then(r => r.data)
+
 export default api

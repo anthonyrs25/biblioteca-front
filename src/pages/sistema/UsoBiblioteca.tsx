@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Button, App, Input } from 'antd'
-import { ReadOutlined, CheckCircleOutlined, ArrowLeftOutlined } from '@ant-design/icons'
-import { crearRegistro } from '../../api/biblioteca'
+import { ReadOutlined, CheckCircleOutlined, ArrowLeftOutlined, PlusOutlined } from '@ant-design/icons'
+import { crearRegistro, getActividades, crearActividad } from '../../api/biblioteca'
 
 interface Props {
   docente: any | null
@@ -9,21 +9,13 @@ interface Props {
   enModal?: boolean
 }
 
-const actividades = [
-  { value: 'lectura', label: '📖 Lectura en sala' },
-  { value: 'investigacion', label: '🔬 Investigación' },
-  { value: 'trabajo', label: '💻 Trabajo académico' },
-  { value: 'reunion', label: '👥 Reunión de trabajo' },
-  { value: 'otro', label: '📝 Otro' },
-]
-
 const jornadas = [
   { value: 'matutino', label: '🌅 Matutino' },
   { value: 'vespertino', label: '🌇 Vespertino' },
   { value: 'nocturno', label: '🌙 Nocturno' },
 ]
 
-// Grupo de botones: 1 clic para elegir, en vez de abrir un desplegable y luego elegir
+// Grupo de botones de selección única: 1 clic para elegir
 function ChipGroup({ opciones, valor, onChange }: { opciones: { value: any; label: string }[]; valor: any; onChange: (v: any) => void }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -44,7 +36,11 @@ function ChipGroup({ opciones, valor, onChange }: { opciones: { value: any; labe
 
 function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
   const { message } = App.useApp()
-  const [actividad, setActividad] = useState<string | undefined>()
+  const [actividades, setActividades] = useState<any[]>([])
+  // Selección múltiple: se marcan y desmarcan con clic
+  const [actividadesElegidas, setActividadesElegidas] = useState<string[]>([])
+  const [nuevaActividad, setNuevaActividad] = useState('')
+  const [agregandoActividad, setAgregandoActividad] = useState(false)
   const [detalle, setDetalle] = useState('')
   const [carreraSeleccionada, setCarreraSeleccionada] = useState<string | undefined>()
   const [cicloSeleccionado, setCicloSeleccionado] = useState<number | undefined>()
@@ -52,6 +48,10 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
   const [materiaSeleccionada, setMateriaSeleccionada] = useState<string | undefined>()
   const [confirmado, setConfirmado] = useState(false)
   const [guardando, setGuardando] = useState(false)
+
+  useEffect(() => {
+    getActividades().then(setActividades).catch(() => setActividades([]))
+  }, [])
 
   const carrerasReales = (docente?.carreras ?? [])
     .filter((dc: any) => dc.carrera)
@@ -64,7 +64,7 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
   const jornadaHabitual: string | undefined = cicloActual?.jornada
 
   // Auto-selección: si solo hay una opción posible, se precarga sola — el
-  // docente no tiene que elegir algo que de todos modos es lo único que hay.
+  // usuario no tiene que elegir algo que de todos modos es lo único que hay.
   useEffect(() => {
     if (opcionesCarrera.length === 1 && !carreraSeleccionada) {
       setCarreraSeleccionada(opcionesCarrera[0].value)
@@ -91,6 +91,36 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
 
   if (!docente) return null
 
+  // Marca o desmarca una actividad con el mismo clic
+  const alternarActividad = (nombre: string) => {
+    setActividadesElegidas(prev =>
+      prev.includes(nombre) ? prev.filter(a => a !== nombre) : [...prev, nombre]
+    )
+  }
+
+  // La actividad escrita se guarda en el catálogo y queda disponible
+  // para los próximos registros.
+  const agregarActividadNueva = async () => {
+    const nombre = nuevaActividad.replace(/\s+/g, ' ').trim()
+    if (!nombre) return
+    setAgregandoActividad(true)
+    try {
+      const creada = await crearActividad(nombre)
+      setActividades(prev =>
+        prev.some(a => a.id === creada.id) ? prev : [...prev, creada]
+      )
+      setActividadesElegidas(prev =>
+        prev.includes(creada.nombre) ? prev : [...prev, creada.nombre]
+      )
+      setNuevaActividad('')
+      message.success('Actividad agregada y seleccionada')
+    } catch {
+      message.error('No se pudo agregar la actividad')
+    } finally {
+      setAgregandoActividad(false)
+    }
+  }
+
   const handleCarreraChange = (val: string) => {
     setCarreraSeleccionada(val)
     setCicloSeleccionado(undefined)
@@ -108,7 +138,7 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
   const esDocenteOEstudiante = !esInvitado
 
   const handleConfirmar = async () => {
-    if (!actividad) { message.warning('Selecciona una actividad'); return }
+    if (actividadesElegidas.length === 0) { message.warning('Selecciona al menos una actividad'); return }
     if (!esInvitado) {
       if (!carreraSeleccionada) { message.warning('Selecciona una carrera'); return }
       if (!cicloSeleccionado) { message.warning('Selecciona el ciclo'); return }
@@ -118,18 +148,26 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
 
     setGuardando(true)
     try {
-      await crearRegistro({
-        tipo: 'uso',
-        usuarioId: docente.id,
-        actividad,
-        detalle: detalle || undefined,
-        carrera: esInvitado ? undefined : carreraSeleccionada,
-        ciclo: esInvitado ? undefined : cicloSeleccionado,
-        jornada: esInvitado ? undefined : jornadaSeleccionada,
-        materia: esInvitado ? undefined : materiaSeleccionada,
-      })
+      // Un registro POR CADA actividad: así los reportes suman +1 a cada
+      // una por separado, en vez de contar la combinación como un caso único.
+      for (const actividad of actividadesElegidas) {
+        await crearRegistro({
+          tipo: 'uso',
+          usuarioId: docente.id,
+          actividad,
+          detalle: detalle || undefined,
+          carrera: esInvitado ? undefined : carreraSeleccionada,
+          ciclo: esInvitado ? undefined : cicloSeleccionado,
+          jornada: esInvitado ? undefined : jornadaSeleccionada,
+          materia: esInvitado ? undefined : materiaSeleccionada,
+        })
+      }
       setConfirmado(true)
-      message.success('Registro de uso guardado')
+      message.success(
+        actividadesElegidas.length === 1
+          ? 'Registro de uso guardado'
+          : `${actividadesElegidas.length} actividades registradas`
+      )
       setTimeout(() => onTerminar?.(), 1500)
     } catch {
       message.error('Error al guardar el registro')
@@ -160,8 +198,55 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
       </div>
 
       <div className="form-field">
-        <label className="field-label">Actividad</label>
-        <ChipGroup opciones={actividades} valor={actividad} onChange={setActividad} />
+        <label className="field-label">
+          Actividad <span style={{ color: '#94A3B8', fontWeight: 400 }}>(puedes elegir varias)</span>
+        </label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {actividades.map(a => {
+            const elegida = actividadesElegidas.includes(a.nombre)
+            return (
+              <Button
+                key={a.id}
+                onClick={() => alternarActividad(a.nombre)}
+                type={elegida ? 'primary' : 'default'}
+                style={elegida ? { background: '#00796B', borderColor: '#00796B' } : {}}
+                size="large"
+              >
+                {a.icono ? `${a.icono} ` : ''}{a.nombre}
+              </Button>
+            )
+          })}
+        </div>
+        {actividadesElegidas.length > 0 && (
+          <p style={{ fontSize: 11, color: '#00796B', marginTop: 6 }}>
+            {actividadesElegidas.length} seleccionada{actividadesElegidas.length > 1 ? 's' : ''} ·
+            se registrará una visita por cada una
+          </p>
+        )}
+      </div>
+
+      <div className="form-field">
+        <label className="field-label">
+          ¿No está en la lista? <span style={{ color: '#94A3B8', fontWeight: 400 }}>(se guardará para la próxima vez)</span>
+        </label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Input
+            placeholder="Escribe una actividad nueva..."
+            value={nuevaActividad}
+            onChange={e => setNuevaActividad(e.target.value)}
+            onPressEnter={agregarActividadNueva}
+            size="large"
+          />
+          <Button
+            icon={<PlusOutlined />}
+            onClick={agregarActividadNueva}
+            loading={agregandoActividad}
+            disabled={!nuevaActividad.trim()}
+            size="large"
+          >
+            Agregar
+          </Button>
+        </div>
       </div>
 
       <div className="form-field">
