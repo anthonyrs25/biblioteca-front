@@ -7,8 +7,12 @@ import {
   getUsuarios, actualizarUsuario, crearUsuario, actualizarCiclosUsuario,
   agregarCarreraUsuario, quitarCarreraUsuario, getUltimoEscaneoDesde, getUsuarioByRfid,
   cambiarRolUsuario, eliminarUsuario, getPapeleraUsuarios, restaurarUsuario, getCarreras,
+  getMateriasPorCarrera,
 } from '../../api/biblioteca'
+import { normalizarMaterias } from '../../utils/materias'
 import { escucharDatosActualizados } from '../../utils/refresco'
+import AsignacionAcademica from '../../components/AsignacionAcademica'
+import type { CarreraAsignada } from '../../components/AsignacionAcademica'
 
 const OPCIONES_CICLO = [1, 2, 3, 4].map(n => ({ value: n, label: `${n}° Ciclo` }))
 const OPCIONES_JORNADA = [
@@ -26,9 +30,6 @@ const ETIQUETAS: Record<Tipo, string> = {
   INVITADO: 'Invitado',
 }
 const etiquetaDe = (t: Tipo) => ETIQUETAS[t] || 'Usuario'
-
-type CicloEditando = { numero: number; materias: string; jornada?: string }
-type CarreraEditando = { nombre: string; ciclos: CicloEditando[] }
 
 interface Props {
   // Sin prop = página unificada de Usuarios (arranca en "Todos").
@@ -52,13 +53,14 @@ function GestionPersonas({ tipoPersona }: Props) {
 
   const [personas, setPersonas] = useState<any[]>([])
   const [carrerasDisponibles, setCarrerasDisponibles] = useState<string[]>([])
+  const [materiasPorCarrera, setMateriasPorCarrera] = useState<Record<string, string[]>>({})
   const [cargando, setCargando] = useState(false)
   const [modalEditar, setModalEditar] = useState(false)
   const [modalCrear, setModalCrear] = useState(false)
   const [editando, setEditando] = useState<any | null>(null)
-  const [carrerasEditando, setCarrerasEditando] = useState<CarreraEditando[]>([])
+  const [asignacionEditar, setAsignacionEditar] = useState<CarreraAsignada[]>([])
   const [carrerasOriginales, setCarrerasOriginales] = useState<string[]>([])
-  const [carreraNuevaSel, setCarreraNuevaSel] = useState<string | undefined>()
+  const [asignacionCrear, setAsignacionCrear] = useState<CarreraAsignada[]>([])
   const [formEditar] = Form.useForm()
   const [formCrear] = Form.useForm()
   const [modalPapelera, setModalPapelera] = useState(false)
@@ -91,6 +93,7 @@ function GestionPersonas({ tipoPersona }: Props) {
 
   useEffect(() => {
     getCarreras().then((data: any[]) => setCarrerasDisponibles(data.map(c => c.nombre)))
+    getMateriasPorCarrera().then(setMateriasPorCarrera).catch(() => setMateriasPorCarrera({}))
   }, [])
 
   const abrirPapelera = () => {
@@ -143,13 +146,11 @@ function GestionPersonas({ tipoPersona }: Props) {
   }
 
   useEffect(() => { cargarPersonas() }, [segmento])
-
   useEffect(() => escucharDatosActualizados(cargarPersonas), [segmento])
-
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
-  // Materias disponibles para el filtro: se calculan de las personas ya cargadas,
-  // no hace falta pedirlas aparte al backend.
+  // Materias asignadas a las personas cargadas: alimentan el FILTRO
+  // (solo tiene sentido filtrar por materias que alguien realmente tiene).
   const materiasDisponibles = useMemo(() => {
     const set = new Set<string>()
     personas.forEach(p => p.carreras?.forEach((dc: any) =>
@@ -201,22 +202,22 @@ function GestionPersonas({ tipoPersona }: Props) {
     setBusquedaTexto('')
   }
 
-  const construirCarrerasEditando = (persona: any): CarreraEditando[] =>
+  const construirAsignacion = (persona: any): CarreraAsignada[] =>
     (persona.carreras ?? [])
       .filter((dc: any) => dc.carrera)
       .map((dc: any) => ({
         nombre: dc.carrera.nombre,
         ciclos: (dc.ciclos ?? []).map((c: any) => ({
           numero: c.numero,
-          materias: (c.materias ?? []).map((m: any) => m.nombre).join(', '),
           jornada: c.jornada,
+          materias: (c.materias ?? []).map((m: any) => m.nombre),
         })),
       }))
 
   const abrirEditar = (persona: any) => {
     setEditando(persona)
-    const iniciales = construirCarrerasEditando(persona)
-    setCarrerasEditando(iniciales)
+    const iniciales = construirAsignacion(persona)
+    setAsignacionEditar(iniciales)
     setCarrerasOriginales(iniciales.map(c => c.nombre))
     formEditar.setFieldsValue({
       rfid: persona.rfid,
@@ -258,17 +259,55 @@ function GestionPersonas({ tipoPersona }: Props) {
     }, 1500)
   }
 
+  // Valida la asignación académica y la deja lista para el backend.
+  const prepararCarreras = (asignacion: CarreraAsignada[]): any[] | null => {
+    if (asignacion.length === 0) {
+      message.warning('Selecciona al menos una carrera')
+      return null
+    }
+    for (const carrera of asignacion) {
+      if (carrera.ciclos.length === 0) {
+        message.warning(`Agrega al menos un ciclo en ${carrera.nombre}`)
+        return null
+      }
+      for (const ciclo of carrera.ciclos) {
+        if (!ciclo.jornada) {
+          message.warning(`Selecciona la jornada del ${ciclo.numero}° ciclo en ${carrera.nombre}`)
+          return null
+        }
+        if (normalizarMaterias(ciclo.materias).length === 0) {
+          message.warning(`Agrega al menos una materia en el ${ciclo.numero}° ciclo de ${carrera.nombre}`)
+          return null
+        }
+      }
+    }
+    return asignacion.map(c => ({
+      nombre: c.nombre,
+      ciclos: c.ciclos.map(ci => ({
+        numero: ci.numero,
+        jornada: ci.jornada,
+        materias: normalizarMaterias(ci.materias),
+      })),
+    }))
+  }
+
   const handleGuardarEdicion = async () => {
     try {
       const valores = await formEditar.validateFields()
+
+      // Para no-invitados, la asignación académica se valida antes de tocar nada
+      const carreras = editarEsInvitado ? [] : prepararCarreras(asignacionEditar)
+      if (!editarEsInvitado && !carreras) return
+
       await actualizarUsuario(editando.id, {
         rfid: valores.rfid,
         nombre: valores.nombre,
         iniciales: valores.iniciales,
         ...(editarEsInvitado ? { tipoDocumento: valores.tipoDocumento, numeroDocumento: valores.numeroDocumento } : {}),
       })
-      if (!editarEsInvitado) {
-        const nombresActuales = carrerasEditando.map(c => c.nombre)
+
+      if (!editarEsInvitado && carreras) {
+        const nombresActuales = carreras.map((c: any) => c.nombre)
 
         // Carreras que se quitaron desde que se abrió el modal
         for (const nombreOriginal of carrerasOriginales) {
@@ -282,15 +321,12 @@ function GestionPersonas({ tipoPersona }: Props) {
             await agregarCarreraUsuario(editando.id, nombreActual)
           }
         }
-        // Ciclos y materias de todas las carreras que quedaron al final
-        for (const carrera of carrerasEditando) {
-          await actualizarCiclosUsuario(editando.id, carrera.nombre, carrera.ciclos.map(c => ({
-            numero: c.numero,
-            materias: c.materias.split(',').map((m: string) => m.trim()).filter(Boolean),
-            jornada: c.jornada,
-          })))
+        // Ciclos y materias de cada carrera que quedó al final
+        for (const carrera of carreras) {
+          await actualizarCiclosUsuario(editando.id, carrera.nombre, carrera.ciclos)
         }
       }
+
       message.success(`${etiquetaDe(tipoEditando)} actualizado`)
       detenerVinculacion()
       setModalEditar(false)
@@ -301,26 +337,16 @@ function GestionPersonas({ tipoPersona }: Props) {
     }
   }
 
-  // Agregar/quitar carrera ahora es solo un cambio local — se aplica de
-  // verdad recién al presionar "Guardar cambios", igual que los ciclos y
-  // materias. Antes se aplicaba al instante, lo cual era inconsistente:
-  // si cerrabas el modal sin guardar, la carrera ya había quedado asignada
-  // en la base de datos de todos modos.
-  const handleAgregarCarrera = () => {
-    if (!carreraNuevaSel) return
-    setCarrerasEditando([...carrerasEditando, { nombre: carreraNuevaSel, ciclos: [{ numero: 2, materias: '' }] }])
-    setCarreraNuevaSel(undefined)
-  }
-
-  const handleQuitarCarrera = (nombre: string) => {
-    setCarrerasEditando(carrerasEditando.filter(c => c.nombre !== nombre))
-  }
-
   const handleCrearPersona = async () => {
     try {
       const valores = await formCrear.validateFields()
       const tipoFinal: Tipo = esTodos ? valores.tipoPersonaNuevo : (segmento as Tipo)
       const tipoFinalEsInvitado = tipoFinal === 'INVITADO'
+
+      // La asignación académica es obligatoria salvo para invitados
+      const carreras = tipoFinalEsInvitado ? undefined : prepararCarreras(asignacionCrear)
+      if (!tipoFinalEsInvitado && !carreras) return
+
       await crearUsuario({
         nombre: valores.nombre,
         iniciales: valores.iniciales,
@@ -329,21 +355,13 @@ function GestionPersonas({ tipoPersona }: Props) {
         tipoPersona: tipoFinal,
         tipoDocumento: tipoFinalEsInvitado ? valores.tipoDocumento : undefined,
         numeroDocumento: tipoFinalEsInvitado ? valores.numeroDocumento : undefined,
-        carreras: (!tipoFinalEsInvitado && valores.carrera) ? [{
-          nombre: valores.carrera,
-          ciclos: [{
-            numero: parseInt(valores.ciclo) || 1,
-            materias: valores.materias
-              ? valores.materias.split(',').map((m: string) => m.trim()).filter(Boolean)
-              : [],
-            jornada: valores.jornada || undefined,
-          }],
-        }] : undefined,
+        carreras: carreras ?? undefined,
       })
       message.success(`${etiquetaDe(tipoFinal)} creado correctamente`)
       detenerVinculacion()
       setModalCrear(false)
       formCrear.resetFields()
+      setAsignacionCrear([])
       cargarPersonas()
     } catch (err: any) {
       if (err?.errorFields) return
@@ -355,10 +373,10 @@ function GestionPersonas({ tipoPersona }: Props) {
     const carreras = d.carreras ?? []
     if (carreras.length === 0) return <span style={{ color: '#94A3B8' }}>Sin carrera</span>
     return carreras.map((dc: any) => (
-      <div key={dc.carrera?.nombre} style={{ marginBottom: 2 }}>
-        <Tag>{dc.carrera?.nombre}</Tag>
-        {dc.ciclos?.map((c: any) => (
-          <Tag key={c.numero} color="blue">{c.numero}° {c.jornada ? `· ${c.jornada}` : ''}</Tag>
+      <div key={dc.carrera?.nombre} style={{ marginBottom: 4 }}>
+        <Tag color="cyan">{dc.carrera?.nombre}</Tag>
+        {dc.ciclos?.map((c: any, i: number) => (
+          <Tag key={i} color="blue">{c.numero}° {c.jornada ? `· ${c.jornada}` : ''}</Tag>
         ))}
       </div>
     ))
@@ -398,7 +416,7 @@ function GestionPersonas({ tipoPersona }: Props) {
       title: 'Documento', key: 'documento',
       render: (_: any, d: any) => renderDocumento(d),
     }] : [{
-      title: 'Carrera / Ciclo', key: 'carrera',
+      title: 'Carreras / Ciclos', key: 'carrera',
       render: (_: any, d: any) => renderCarreras(d),
     }]),
     { title: 'Préstamos activos', dataIndex: 'prestamosActivos', key: 'prestamosActivos', width: 140 },
@@ -443,10 +461,6 @@ function GestionPersonas({ tipoPersona }: Props) {
     },
   ]
 
-  const carrerasNoAsignadas = carrerasDisponibles.filter(
-    c => !carrerasEditando.some(ce => ce.nombre === c)
-  )
-
   const hayFiltrosActivos = filtroCarrera || filtroCiclo || filtroJornada || filtroMateria
 
   return (
@@ -474,7 +488,7 @@ function GestionPersonas({ tipoPersona }: Props) {
             className="btn-exportar"
             icon={<PlusOutlined />}
             size="large"
-            onClick={() => { formCrear.resetFields(); setModalCrear(true) }}
+            onClick={() => { formCrear.resetFields(); setAsignacionCrear([]); setModalCrear(true) }}
           >
             Nuevo {etiqueta}
           </Button>
@@ -521,10 +535,11 @@ function GestionPersonas({ tipoPersona }: Props) {
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, padding: '12px 16px', background: '#F5F7FA', borderRadius: 10, border: '1px solid #E2E8F0', alignItems: 'center' }}>
           <FilterOutlined style={{ color: '#4A5568' }} />
           <Select
-            placeholder="Carrera" allowClear style={{ width: 200 }}
+            placeholder="Carrera" allowClear style={{ width: 220 }}
             value={filtroCarrera} onChange={setFiltroCarrera}
             options={carrerasDisponibles.map(c => ({ value: c, label: c }))}
             showSearch
+            optionFilterProp="label"
           />
           <Select
             placeholder="Ciclo" allowClear style={{ width: 120 }}
@@ -541,6 +556,7 @@ function GestionPersonas({ tipoPersona }: Props) {
             value={filtroMateria} onChange={setFiltroMateria}
             options={materiasDisponibles.map(m => ({ value: m, label: m }))}
             showSearch
+            optionFilterProp="label"
           />
           {hayFiltrosActivos && (
             <Button size="small" onClick={limpiarFiltros}>Limpiar filtros</Button>
@@ -566,7 +582,7 @@ function GestionPersonas({ tipoPersona }: Props) {
         onCancel={() => { detenerVinculacion(); setModalEditar(false) }}
         okText="Guardar cambios"
         cancelText="Cancelar"
-        width={600}
+        width={640}
         destroyOnClose
       >
         <Form form={formEditar} layout="vertical" style={{ marginTop: 20 }}>
@@ -613,95 +629,16 @@ function GestionPersonas({ tipoPersona }: Props) {
 
         {editando && !editarEsInvitado && (
           <div style={{ marginTop: 8 }}>
-            <Divider>Carreras y materias</Divider>
-
-            {carrerasEditando.map(carrera => (
-              <div key={carrera.nombre} style={{ marginBottom: 16, border: '1px solid #E2E8F0', borderRadius: 10, padding: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <strong style={{ color: '#1A2332' }}>{carrera.nombre}</strong>
-                  <Popconfirm
-                    title="¿Quitar esta carrera?"
-                    description="Se aplicará recién al presionar 'Guardar cambios' — puedes cancelar antes de eso."
-                    onConfirm={() => handleQuitarCarrera(carrera.nombre)}
-                    okText="Sí, quitar" cancelText="Cancelar"
-                  >
-                    <Button size="small" danger>Quitar carrera</Button>
-                  </Popconfirm>
-                </div>
-
-                {carrera.ciclos.map((ciclo, i) => (
-                  <div key={i} style={{ background: '#F5F7FA', borderRadius: 8, padding: '10px 14px', marginBottom: 8 }}>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <Select
-                        value={ciclo.numero}
-                        options={OPCIONES_CICLO}
-                        style={{ width: 110 }}
-                        onChange={val => {
-                          setCarrerasEditando(carrerasEditando.map(c => c.nombre !== carrera.nombre ? c : {
-                            ...c, ciclos: c.ciclos.map((cc, j) => j === i ? { ...cc, numero: val } : cc),
-                          }))
-                        }}
-                      />
-                      <Select
-                        value={ciclo.jornada}
-                        placeholder="Jornada"
-                        allowClear
-                        options={OPCIONES_JORNADA}
-                        style={{ width: 130 }}
-                        onChange={val => {
-                          setCarrerasEditando(carrerasEditando.map(c => c.nombre !== carrera.nombre ? c : {
-                            ...c, ciclos: c.ciclos.map((cc, j) => j === i ? { ...cc, jornada: val } : cc),
-                          }))
-                        }}
-                      />
-                      <Input
-                        value={ciclo.materias}
-                        placeholder="Materias separadas por coma"
-                        onChange={e => {
-                          const valor = e.target.value
-                          setCarrerasEditando(carrerasEditando.map(c => c.nombre !== carrera.nombre ? c : {
-                            ...c, ciclos: c.ciclos.map((cc, j) => j === i ? { ...cc, materias: valor } : cc),
-                          }))
-                        }}
-                      />
-                      <Button
-                        danger size="small"
-                        onClick={() => setCarrerasEditando(carrerasEditando.map(c => c.nombre !== carrera.nombre ? c : {
-                          ...c, ciclos: c.ciclos.filter((_, j) => j !== i),
-                        }))}
-                      >✕</Button>
-                    </div>
-                  </div>
-                ))}
-
-                <Button
-                  size="small"
-                  icon={<PlusOutlined />}
-                  onClick={() => setCarrerasEditando(carrerasEditando.map(c => c.nombre !== carrera.nombre ? c : {
-                    ...c, ciclos: [...c.ciclos, { numero: 1, materias: '' }],
-                  }))}
-                >
-                  Agregar ciclo
-                </Button>
-              </div>
-            ))}
-
-            {carrerasNoAsignadas.length > 0 && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <Select
-                  placeholder="Agregar otra carrera..."
-                  options={carrerasNoAsignadas.map(c => ({ value: c, label: c }))}
-                  value={carreraNuevaSel}
-                  onChange={setCarreraNuevaSel}
-                  style={{ flex: 1 }}
-                />
-                <Button icon={<PlusOutlined />} onClick={handleAgregarCarrera} disabled={!carreraNuevaSel}>
-                  Agregar
-                </Button>
-              </div>
-            )}
+            <Divider>Asignación académica</Divider>
+            <AsignacionAcademica
+              valor={asignacionEditar}
+              onChange={setAsignacionEditar}
+              carrerasDisponibles={carrerasDisponibles}
+              materiasPorCarrera={materiasPorCarrera}
+              titulo={tipoEditando === 'DOCENTE' ? 'Carreras en las que dicta' : 'Carreras que cursa'}
+            />
             <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 8 }}>
-              Escribe las materias separadas por coma. Todo se aplica junto al presionar "Guardar cambios".
+              Todo se aplica junto al presionar "Guardar cambios".
             </div>
           </div>
         )}
@@ -715,7 +652,7 @@ function GestionPersonas({ tipoPersona }: Props) {
         onCancel={() => { detenerVinculacion(); setModalCrear(false) }}
         okText={tipoCrear ? `Crear ${etiquetaDe(tipoCrear).toLowerCase()}` : 'Crear'}
         cancelText="Cancelar"
-        width={560}
+        width={640}
       >
         <Form form={formCrear} layout="vertical" style={{ marginTop: 20 }}>
           {esTodos && (
@@ -785,23 +722,14 @@ function GestionPersonas({ tipoPersona }: Props) {
                 </>
               ) : (
                 <>
-                  <Divider style={{ margin: '8px 0 16px' }}>Carrera (opcional)</Divider>
-                  <Form.Item name="carrera" label="Carrera">
-                    <Select placeholder="Selecciona la carrera" allowClear options={carrerasDisponibles.map(c => ({ value: c, label: c }))} />
-                  </Form.Item>
-                  <Form.Item name="ciclo" label="Número de ciclo">
-                    <Select placeholder="Selecciona el ciclo" options={OPCIONES_CICLO} />
-                  </Form.Item>
-                  <Form.Item name="jornada" label="Jornada">
-                    <Select placeholder="Selecciona la jornada" allowClear options={OPCIONES_JORNADA} />
-                  </Form.Item>
-                  <Form.Item
-                    name="materias"
-                    label="Materias"
-                    extra="Escribe las materias separadas por coma"
-                  >
-                    <Input.TextArea rows={2} placeholder="Ej: Programación, Base de Datos, Matemáticas" />
-                  </Form.Item>
+                  <Divider style={{ margin: '8px 0 16px' }}>Asignación académica</Divider>
+                  <AsignacionAcademica
+                    valor={asignacionCrear}
+                    onChange={setAsignacionCrear}
+                    carrerasDisponibles={carrerasDisponibles}
+                    materiasPorCarrera={materiasPorCarrera}
+                    titulo={tipoCrear === 'DOCENTE' ? 'Carreras en las que dicta' : 'Carreras que cursa'}
+                  />
                 </>
               )}
             </>
