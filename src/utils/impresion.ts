@@ -506,6 +506,9 @@ type DatosCertificado = {
   alDia: boolean
   pendientes: any[]
   historial: any[]
+  // Cuando la persona no está registrada en el sistema, no hay historial
+  // que consultar: por definición no adeuda material bibliográfico.
+  noRegistrado?: boolean
 }
 
 export function imprimirCertificado(d: DatosCertificado) {
@@ -527,15 +530,19 @@ export function imprimirCertificado(d: DatosCertificado) {
       <td>${fecha(p.fechaDevolucionEsperada)}</td>
     </tr>`).join('')
 
-  const filasHistorial = d.historial.length === 0
-    ? `<tr><td colspan="4" style="text-align:center;color:#8FA5AE;padding:12px">Sin préstamos registrados.</td></tr>`
-    : d.historial.map((p: any) => `
-      <tr>
-        <td>${escapar(p.libro?.titulo)}</td>
-        <td>${escapar(p.libro?.codigo)}</td>
-        <td>${fecha(p.fechaPrestamo)}</td>
-        <td>${p.activo ? '<b>Pendiente</b>' : fecha(p.fechaDevolucion)}</td>
-      </tr>`).join('')
+  const filasHistorial = d.noRegistrado
+    ? `<tr><td colspan="4" style="text-align:center;color:#5A7480;padding:14px">
+         Esta persona no registra actividad en el sistema de la Biblioteca.
+       </td></tr>`
+    : d.historial.length === 0
+      ? `<tr><td colspan="4" style="text-align:center;color:#8FA5AE;padding:12px">Sin préstamos registrados.</td></tr>`
+      : d.historial.map((p: any) => `
+        <tr>
+          <td>${escapar(p.libro?.titulo)}</td>
+          <td>${escapar(p.libro?.codigo)}</td>
+          <td>${fecha(p.fechaPrestamo)}</td>
+          <td>${p.activo ? '<b>Pendiente</b>' : fecha(p.fechaDevolucion)}</td>
+        </tr>`).join('')
 
   const html = `<!DOCTYPE html>
 <html lang="es">

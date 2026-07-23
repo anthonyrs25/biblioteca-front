@@ -20,6 +20,9 @@ import {
 } from '../../utils/impresion'
 import type { TipoHoja } from '../../utils/impresion'
 import { escucharDatosActualizados } from '../../utils/refresco'
+import { Modal } from 'antd'
+import { SafetyCertificateOutlined } from '@ant-design/icons'
+import EmitirCertificado from '../../components/EmitirCertificado'
 
 type TabKey = 'resumen' | 'visitas' | 'prestamos' | 'analitica'
 
@@ -111,11 +114,15 @@ function Reportes() {
   const [activeTab, setActiveTab] = useState<TabKey>(
     (searchParams.get('tab') as TabKey) || 'resumen'
   )
-  // Si llega ?usuario=N desde el panel del llavero, se aplica el filtro solo
+  // Se sincroniza cada vez que cambia la URL, no solo al montar: si el
+  // bibliotecario consulta a una persona y luego a otra sin salir de la
+  // pantalla, el filtro debe seguir el parámetro actual.
   useEffect(() => {
     const u = searchParams.get('usuario')
-    if (u) setUsuarioFiltro(Number(u))
-  }, [])
+    const t = searchParams.get('tab') as TabKey | null
+    setUsuarioFiltro(u ? Number(u) : undefined)
+    if (t) setActiveTab(t)
+  }, [searchParams])
   const [stats, setStats] = useState<any>(null)
   const [totalLibros, setTotalLibros] = useState(0)
   const [disponibles, setDisponibles] = useState(0)
@@ -153,6 +160,7 @@ function Reportes() {
   const [materiasDisponibles, setMateriasDisponibles] = useState<string[]>([])
   const [carrerasDisponibles, setCarrerasDisponibles] = useState<string[]>([])
   const [alcanceReporte, setAlcanceReporte] = useState<'mes' | 'todo'>('mes')
+  const [modalCertificado, setModalCertificado] = useState(false)
 
   const mesNombre = dayjs(`${anio}-${String(mes).padStart(2, '0')}-01`)
     .toDate().toLocaleString('es-EC', { month: 'long', year: 'numeric' })
@@ -605,15 +613,24 @@ function Reportes() {
           </h1>
           <p className="reportes-subtitulo">Biblioteca Daniel Perazzo · {mesNombre}</p>
         </div>
-        <Button
-          className="btn-exportar"
-          icon={<DownloadOutlined />}
-          size="large"
-          loading={descargando}
-          onClick={handleRespaldo}
-        >
-          Descargar respaldo (Excel)
-        </Button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Button
+            icon={<SafetyCertificateOutlined />}
+            size="large"
+            onClick={() => setModalCertificado(true)}
+          >
+            Certificado
+          </Button>
+          <Button
+            className="btn-exportar"
+            icon={<DownloadOutlined />}
+            size="large"
+            loading={descargando}
+            onClick={handleRespaldo}
+          >
+            Descargar respaldo (Excel)
+          </Button>
+        </div>
       </div>
 
       <Tabs
@@ -1084,6 +1101,17 @@ function Reportes() {
           },
         ]}
       />
+      <Modal
+        title="Certificado de no adeudar libros"
+        open={modalCertificado}
+        onCancel={() => setModalCertificado(false)}
+        footer={null}
+        destroyOnClose
+        centered
+        width={520}
+      >
+        <EmitirCertificado />
+      </Modal>
     </div>
   )
 }
