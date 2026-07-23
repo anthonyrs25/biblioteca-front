@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { App as AntApp, Modal, ConfigProvider } from 'antd'
 import esES from 'antd/locale/es_ES'
 import Landing from './pages/Landing'
@@ -21,6 +21,8 @@ import { conectarEscaneosRfid, esKioscoActivo } from './api/biblioteca'
 import { LLAVEROS_GENERALES, type PasoSelector } from './config/llaverosGenerales'
 import { avisarDatosActualizados } from './utils/refresco'
 import HeaderSistema from './components/HeaderSistema'
+import { getEstadoUsuario } from './api/biblioteca'
+import { imprimirCertificado } from './utils/impresion'
 
 // Escucha los escaneos del lector por SSE ("timbre"): el backend avisa al
 // instante, sin polling. Solo escucha si este dispositivo tiene el modo
@@ -90,28 +92,57 @@ function DocentePanel({ docente, onCerrar, onIr }: {
   onCerrar: () => void
   onIr: (vista: 'uso' | 'prestamo' | 'devolucion') => void
 }) {
+  const navigate = useNavigate()
+  const { message } = AntApp.useApp()
+  const [generando, setGenerando] = useState(false)
+
   const nombresCarreras = docente.carreras
     ?.map((dc: any) => dc.carrera?.nombre)
     .filter(Boolean)
     .join(' · ') || 'Sin carrera asignada'
   const prestamosActivos = docente.prestamosActivos ?? 0
 
+  // El certificado se emite desde aquí porque es donde la persona ya está
+  // identificada: obligar a buscarla de nuevo en Gestión sería redundante.
+  const emitirCertificado = async () => {
+    setGenerando(true)
+    try {
+      const estado = await getEstadoUsuario(docente.id)
+      if (!estado?.ok) {
+        message.error('No se pudo obtener el estado de la persona')
+        return
+      }
+      imprimirCertificado(estado)
+    } catch {
+      message.error('No se pudo generar el certificado — revisa la conexión')
+    } finally {
+      setGenerando(false)
+    }
+  }
+
+  // Abre los reportes ya filtrados por esta persona
+  const verReportes = () => {
+    onCerrar()
+    navigate(`/sistema/reportes?tab=visitas&usuario=${docente.id}`)
+  }
+
   return (
     <div style={{ padding: 32 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
         <div style={{
           width: 64, height: 64, borderRadius: '50%',
-          background: 'linear-gradient(135deg, #00695C, #00897B)',
+          background: 'linear-gradient(135deg, #007D7A, #00A9A5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#fff', fontSize: 20, fontWeight: 700, flexShrink: 0,
         }}>
           {docente.iniciales}
         </div>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#1A2332' }}>{docente.nombre}</div>
-          <div style={{ fontSize: 13, color: '#4A5568', marginTop: 2 }}>{nombresCarreras}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#12303A' }}>{docente.nombre}</div>
+          <div style={{ fontSize: 13, color: '#5A7480', marginTop: 2 }}>{nombresCarreras}</div>
         </div>
       </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <button className="opcion-btn" onClick={() => onIr('uso')}>
           <span style={{ fontSize: 24 }}>📖</span>
@@ -138,6 +169,36 @@ function DocentePanel({ docente, onCerrar, onIr }: {
             </span>
           </button>
         )}
+
+        {/* Consultas sobre esta persona, separadas de las acciones de registro */}
+        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <button
+            className="opcion-btn"
+            onClick={emitirCertificado}
+            disabled={generando}
+            style={{ flex: 1, borderColor: '#9FDEDC', background: '#E6F7F6' }}
+          >
+            <span style={{ fontSize: 20 }}>📄</span>
+            <span>
+              <span className="opcion-titulo">
+                {generando ? 'Generando...' : 'Certificado'}
+              </span>
+              <span className="opcion-desc">De no adeudar libros</span>
+            </span>
+          </button>
+          <button
+            className="opcion-btn"
+            onClick={verReportes}
+            style={{ flex: 1, borderColor: '#9FDEDC', background: '#E6F7F6' }}
+          >
+            <span style={{ fontSize: 20 }}>📊</span>
+            <span>
+              <span className="opcion-titulo">Su historial</span>
+              <span className="opcion-desc">Visitas y préstamos</span>
+            </span>
+          </button>
+        </div>
+
         <button
           className="opcion-btn"
           onClick={onCerrar}

@@ -111,6 +111,11 @@ function Reportes() {
   const [activeTab, setActiveTab] = useState<TabKey>(
     (searchParams.get('tab') as TabKey) || 'resumen'
   )
+  // Si llega ?usuario=N desde el panel del llavero, se aplica el filtro solo
+  useEffect(() => {
+    const u = searchParams.get('usuario')
+    if (u) setUsuarioFiltro(Number(u))
+  }, [])
   const [stats, setStats] = useState<any>(null)
   const [totalLibros, setTotalLibros] = useState(0)
   const [disponibles, setDisponibles] = useState(0)

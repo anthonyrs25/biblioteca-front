@@ -10,6 +10,7 @@ import { normalizarMaterias } from '../utils/materias'
 import { calcularIniciales } from '../utils/iniciales'
 import AsignacionAcademica from './AsignacionAcademica'
 import type { CarreraAsignada } from './AsignacionAcademica'
+import { validarDocumento, soloDigitos } from '../utils/documento'
 
 type PasoManual = 'tipo' | PasoSelector
 
@@ -188,6 +189,9 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
     if (!nombreInvitado.trim()) { message.warning('Ingresa el nombre'); return }
     if (!numeroDocInvitado.trim()) { message.warning('Ingresa el número de documento'); return }
 
+    const check = validarDocumento(tipoDocInvitado, numeroDocInvitado)
+    if (!check.valida) { message.warning(check.mensaje); return }
+
     setBuscandoInvitado(true)
     try {
       const encontrado = await buscarPorDocumento(numeroDocInvitado.trim())
@@ -353,7 +357,17 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
           />
 
           <label className="field-label">Número de documento</label>
-          <Input value={numeroDocInvitado} onChange={e => setNumeroDocInvitado(e.target.value)} size="large" style={{ marginBottom: 16 }} />
+          <Input
+            value={numeroDocInvitado}
+            onChange={e => setNumeroDocInvitado(
+              tipoDocInvitado === 'cedula'
+                ? soloDigitos(e.target.value).slice(0, 10)
+                : e.target.value.toUpperCase()
+            )}
+            placeholder={tipoDocInvitado === 'cedula' ? '10 dígitos' : 'Ej: AB123456'}
+            size="large"
+            style={{ marginBottom: 16 }}
+          />
 
           <Button
             className="btn-confirmar" block size="large"

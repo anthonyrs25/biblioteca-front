@@ -14,6 +14,7 @@ import { escucharDatosActualizados } from '../../utils/refresco'
 import AsignacionAcademica from '../../components/AsignacionAcademica'
 import type { CarreraAsignada } from '../../components/AsignacionAcademica'
 import { calcularIniciales } from '../../utils/iniciales'
+import { validarDocumento } from '../../utils/documento'
 
 const OPCIONES_CICLO = [1, 2, 3, 4].map(n => ({ value: n, label: `${n}° Ciclo` }))
 const OPCIONES_JORNADA = [
@@ -601,11 +602,24 @@ function GestionPersonas({ tipoPersona }: Props) {
           )}
           {editarEsInvitado && (
             <>
-              <Form.Item name="tipoDocumento" label="Tipo de documento">
-                <Select options={[{ value: 'cedula', label: 'Cédula' }, { value: 'pasaporte', label: 'Pasaporte' }]} />
-              </Form.Item>
-              <Form.Item name="numeroDocumento" label="Número de documento">
-                <Input />
+              <Form.Item
+                name="numeroDocumento"
+                label="Número de documento"
+                rules={[
+                  { required: true, message: 'Ingresa el número' },
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      if (!value) return Promise.resolve()
+                      const tipo = getFieldValue('tipoDocumento') || 'cedula'
+                      const check = validarDocumento(tipo, value)
+                      return check.valida
+                        ? Promise.resolve()
+                        : Promise.reject(new Error(check.mensaje))
+                    },
+                  }),
+                ]}
+              >
+                <Input placeholder="Ej: 0102030405" maxLength={20} />
               </Form.Item>
             </>
           )}
@@ -697,8 +711,24 @@ function GestionPersonas({ tipoPersona }: Props) {
                   <Form.Item name="tipoDocumento" label="Tipo de documento" rules={[{ required: true, message: 'Selecciona el tipo de documento' }]}>
                     <Select placeholder="Selecciona el tipo" options={[{ value: 'cedula', label: 'Cédula' }, { value: 'pasaporte', label: 'Pasaporte' }]} />
                   </Form.Item>
-                  <Form.Item name="numeroDocumento" label="Número de documento" rules={[{ required: true, message: 'Ingresa el número' }]}>
-                    <Input placeholder="Ej: 0102030405" />
+                  <Form.Item
+                    name="numeroDocumento"
+                    label="Número de documento"
+                    rules={[
+                      { required: true, message: 'Ingresa el número' },
+                      ({ getFieldValue }) => ({
+                        validator(_, value) {
+                          if (!value) return Promise.resolve()
+                          const tipo = getFieldValue('tipoDocumento') || 'cedula'
+                          const check = validarDocumento(tipo, value)
+                          return check.valida
+                            ? Promise.resolve()
+                            : Promise.reject(new Error(check.mensaje))
+                        },
+                      }),
+                    ]}
+                  >
+                    <Input placeholder="Ej: 0102030405" maxLength={20} />
                   </Form.Item>
                 </>
               ) : (
