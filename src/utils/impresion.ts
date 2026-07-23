@@ -468,3 +468,152 @@ export function imprimirReporteGestion(d: DatosReporte) {
 
   abrirVentana(html)
 }
+
+// ───────────────────────────────────────────────
+// CERTIFICADO DE NO ADEUDAR LIBROS
+// Requisito institucional para trámites de titulación.
+// ───────────────────────────────────────────────
+
+const ESTILOS_CERTIFICADO = `
+  @page { size: A4 portrait; margin: 20mm 18mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #12303A; margin: 0; font-size: 12px; }
+  .encabezado { display: flex; align-items: center; gap: 14px; border-bottom: 2px solid #00A9A5; padding-bottom: 10px; margin-bottom: 28px; }
+  .encabezado img { height: 48px; }
+  .inst .nombre { font-size: 14px; font-weight: bold; }
+  .inst .datos { font-size: 9.5px; color: #5A7480; line-height: 1.4; }
+  h1 { font-size: 17px; text-align: center; margin: 0 0 6px; letter-spacing: 1px; }
+  .subtitulo { text-align: center; font-size: 11px; color: #5A7480; margin-bottom: 30px; }
+  .cuerpo { font-size: 12.5px; line-height: 1.9; text-align: justify; }
+  .cuerpo strong { font-weight: bold; }
+  .datos-persona { background: #E6F7F6; border: 1px solid #9FDEDC; border-radius: 8px; padding: 14px 18px; margin: 22px 0; }
+  .datos-persona div { margin-bottom: 5px; font-size: 12px; }
+  .estado { text-align: center; padding: 16px; border-radius: 8px; margin: 24px 0; font-size: 13px; font-weight: bold; }
+  .estado.libre { background: #E8F7EF; border: 1px solid #4CAF7D; color: #1F7A4C; }
+  .estado.deuda { background: #FDECEC; border: 1px solid #F2635F; color: #B3312D; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { border: 1px solid #DCE8EA; padding: 6px 8px; font-size: 10.5px; text-align: left; }
+  th { background: #E6F7F6; text-transform: uppercase; font-size: 9.5px; }
+  .firma { margin-top: 60px; text-align: center; page-break-inside: avoid; }
+  .firma .linea { width: 240px; border-top: 1px solid #12303A; margin: 0 auto 5px; }
+  .firma .cargo { font-size: 11px; }
+  .firma .rol { font-size: 10px; color: #5A7480; }
+  .generado { margin-top: 24px; font-size: 8.5px; color: #8FA5AE; text-align: right; }
+`
+
+type DatosCertificado = {
+  usuario: any
+  alDia: boolean
+  pendientes: any[]
+  historial: any[]
+}
+
+export function imprimirCertificado(d: DatosCertificado) {
+  const logo = `${window.location.origin}/logo-sudamericano.png`
+  const hoy = new Date().toLocaleDateString('es-EC', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  })
+
+  const carreras = (d.usuario.carreras ?? [])
+    .map((c: any) => c.carrera?.nombre)
+    .filter(Boolean)
+    .join(', ') || 'No registrada'
+
+  const filasPendientes = d.pendientes.map((p: any) => `
+    <tr>
+      <td>${escapar(p.libro?.titulo)}</td>
+      <td>${escapar(p.libro?.codigo)}</td>
+      <td>${fecha(p.fechaPrestamo)}</td>
+      <td>${fecha(p.fechaDevolucionEsperada)}</td>
+    </tr>`).join('')
+
+  const filasHistorial = d.historial.length === 0
+    ? `<tr><td colspan="4" style="text-align:center;color:#8FA5AE;padding:12px">Sin préstamos registrados.</td></tr>`
+    : d.historial.map((p: any) => `
+      <tr>
+        <td>${escapar(p.libro?.titulo)}</td>
+        <td>${escapar(p.libro?.codigo)}</td>
+        <td>${fecha(p.fechaPrestamo)}</td>
+        <td>${p.activo ? '<b>Pendiente</b>' : fecha(p.fechaDevolucion)}</td>
+      </tr>`).join('')
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Certificado - ${escapar(d.usuario.nombre)}</title>
+  <style>${ESTILOS_CERTIFICADO}</style>
+</head>
+<body>
+  <div class="encabezado">
+    <img src="${logo}" alt="">
+    <div class="inst">
+      <div class="nombre">INSTITUTO TECNOLÓGICO SUPERIOR SUDAMERICANO</div>
+      <div class="datos">
+        Biblioteca "Daniel Perazzo" · Cuenca, Ecuador<br>
+        (593-7) 2838323 · Bolívar y Manuel Vega - San Blas
+      </div>
+    </div>
+  </div>
+
+  <h1>CERTIFICADO DE NO ADEUDAR MATERIAL BIBLIOGRÁFICO</h1>
+  <div class="subtitulo">Emitido por la Biblioteca "Daniel Perazzo"</div>
+
+  <div class="cuerpo">
+    La Biblioteca "Daniel Perazzo" del Instituto Tecnológico Superior Sudamericano
+    <strong>CERTIFICA</strong> que, según los registros del sistema de gestión bibliotecaria
+    a la fecha de emisión del presente documento, la persona identificada a continuación
+    presenta el siguiente estado respecto al material bibliográfico de esta institución:
+  </div>
+
+  <div class="datos-persona">
+    <div><strong>Nombre:</strong> ${escapar(d.usuario.nombre)}</div>
+    <div><strong>Tipo de usuario:</strong> ${escapar(ETIQUETA_TIPO[d.usuario.tipoPersona] ?? d.usuario.tipoPersona)}</div>
+    ${d.usuario.email ? `<div><strong>Correo institucional:</strong> ${escapar(d.usuario.email)}</div>` : ''}
+    ${d.usuario.numeroDocumento ? `<div><strong>Documento:</strong> ${escapar(d.usuario.numeroDocumento)}</div>` : ''}
+    <div><strong>Carrera:</strong> ${escapar(carreras)}</div>
+  </div>
+
+  ${d.alDia
+      ? `<div class="estado libre">
+           NO REGISTRA PRÉSTAMOS PENDIENTES DE DEVOLUCIÓN<br>
+           <span style="font-weight:normal;font-size:11px">Se encuentra al día con la Biblioteca.</span>
+         </div>`
+      : `<div class="estado deuda">
+           REGISTRA ${d.pendientes.length} PRÉSTAMO${d.pendientes.length > 1 ? 'S' : ''} PENDIENTE${d.pendientes.length > 1 ? 'S' : ''} DE DEVOLUCIÓN<br>
+           <span style="font-weight:normal;font-size:11px">No puede emitirse certificado de no adeudar hasta regularizar su situación.</span>
+         </div>
+         <table>
+           <thead><tr><th>Libro</th><th>Código</th><th>Fecha préstamo</th><th>Devolución esperada</th></tr></thead>
+           <tbody>${filasPendientes}</tbody>
+         </table>`
+    }
+
+  <div style="margin-top:26px">
+    <div style="font-size:11px;font-weight:bold;margin-bottom:4px">HISTORIAL DE PRÉSTAMOS</div>
+    <table>
+      <thead><tr><th>Libro</th><th>Código</th><th>Fecha préstamo</th><th>Devolución</th></tr></thead>
+      <tbody>${filasHistorial}</tbody>
+    </table>
+  </div>
+
+  <div class="cuerpo" style="margin-top:24px">
+    Se expide el presente certificado a petición de la parte interesada, en la ciudad de
+    Cuenca, a ${hoy}.
+  </div>
+
+  <div class="firma">
+    <div class="linea"></div>
+    <div class="cargo">Mgtr. Roberto Salazar</div>
+    <div class="rol">Responsable de la Biblioteca "Daniel Perazzo"</div>
+  </div>
+
+  <div class="generado">
+    Documento generado por el Sistema de Gestión Bibliotecaria el
+    ${new Date().toLocaleDateString('es-EC')} a las ${new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}
+  </div>
+</body>
+</html>`
+
+  abrirVentana(html)
+}

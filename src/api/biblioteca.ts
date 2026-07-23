@@ -302,4 +302,10 @@ export const reemplazarAsignacion = (
   carreras: { nombre: string; ciclos: { numero: number; jornada?: string; materias: string[] }[] }[],
 ) => api.put(`/usuarios/${id}/asignacion`, { carreras }).then(r => r.data)
 
+export const getActividadesMasRealizadas = (periodo?: string) =>
+  api.get('/registros/actividades-mas-realizadas', { params: { periodo } }).then(r => r.data)
+
+export const getEstadoUsuario = (id: number) =>
+  api.get(`/prestamos/estado-usuario/${id}`).then(r => r.data)
+
 export default api

@@ -2,15 +2,16 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Statistic, Progress, Tabs, Table, Tag, Select, DatePicker, Button, App } from 'antd'
 import {
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Legend,
+  PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis,
+  CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Legend,
 } from 'recharts'
 import {
   ArrowLeftOutlined, BarChartOutlined, TeamOutlined,
   SwapOutlined, CheckCircleOutlined, BookOutlined, DownloadOutlined,
-  PrinterOutlined, FileTextOutlined, FilePdfOutlined,
+  PrinterOutlined, FileTextOutlined, FilePdfOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
 import dayjs, { Dayjs } from 'dayjs'
-import { getStatsPeriodo, getComparativaAnual, getComparativaPorTipo, getLibros, getRegistrosMes, getTodosLosPrestamos, getUsuarios, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios, getMateriasDisponibles, getCarreras, exportarTodosPrestamos, exportarTodosRegistros } from '../../api/biblioteca'
+import { getStatsPeriodo, getComparativaAnual, getComparativaPorTipo, getLibros, getRegistrosMes, getTodosLosPrestamos, getUsuarios, getTotalVisitasPublicas, getLibrosMasBuscados, getCarrerasMasClickeadas, getRankingVisitasUsuarios, getRankingPrestamosLibros, getRankingPrestamosUsuarios, getMateriasDisponibles, getCarreras, exportarTodosPrestamos, exportarTodosRegistros, getActividadesMasRealizadas } from '../../api/biblioteca'
 import { nombreCortoPrograma } from '../../utils/carreras'
 import { descargarRespaldoExcel } from '../../utils/respaldo'
 import {
@@ -22,20 +23,35 @@ import { escucharDatosActualizados } from '../../utils/refresco'
 
 type TabKey = 'resumen' | 'visitas' | 'prestamos' | 'analitica'
 
-// ── Paleta turquesa institucional ──
-// Antes se usaban verdes petróleo (#00695C, #004D40) que no corresponden
-// al color de marca del Instituto Sudamericano.
+// ── Paleta institucional + acentos de dashboard ──
+// El turquesa del Instituto es el color de marca; los acentos (coral,
+// ámbar, celeste, violeta) diferencian series y categorías, siguiendo
+// el patrón de los dashboards de indicadores.
 const MARCA = '#00A9A5'
 const MARCA_OSCURO = '#007D7A'
 const MARCA_MEDIO = '#4FC3C0'
-const MARCA_CLARO = '#85D6D3'
 const MARCA_FONDO = '#E6F7F6'
 const MARCA_BORDE = '#9FDEDC'
+
+const CORAL = '#F2635F'
+const AMBAR = '#F5A623'
+const CELESTE = '#3EA8E5'
+const VIOLETA = '#8B7BD8'
+const VERDE = '#4CAF7D'
+
 const TEXTO = '#12303A'
 const TEXTO_SUAVE = '#5A7480'
 const TEXTO_TENUE = '#8FA5AE'
+const REJILLA = '#E8F0F1'
 
-const COLORES_GRAFICO = [MARCA_OSCURO, MARCA, MARCA_MEDIO, MARCA_CLARO, '#B5E6E4', '#00918D', '#2FB5B2', '#6BCECB']
+// Escala categórica: cada categoría recibe un color distinto, no un tono
+// distinto del mismo color — así se distinguen de un vistazo.
+const COLORES_GRAFICO = [MARCA, CORAL, CELESTE, AMBAR, VIOLETA, VERDE, MARCA_MEDIO, '#E0776F']
+
+// Ancho uniforme para TODAS las barras: sin este valor, Recharts las
+// ensancha según cuántas haya, y unos gráficos quedan con barras gruesas
+// y otros con barras finas.
+const ANCHO_BARRA = 22
 
 const ETIQUETA_TIPO: Record<string, string> = {
   DOCENTE: 'Docente',
@@ -55,7 +71,20 @@ const OPCIONES_ALCANCE = [
   { value: 'todo', label: 'Todo el historial' },
 ]
 
-// Estilos compartidos de las barras de herramientas
+const OPCIONES_PERIODO = [
+  { value: 'dia', label: 'Último día' },
+  { value: 'semana', label: 'Última semana' },
+  { value: 'mes', label: 'Último mes' },
+  { value: 'anio', label: 'Último año' },
+  { value: 'todo', label: 'Todo el historial' },
+]
+
+const OPCIONES_TIPO_USUARIO = [
+  { value: 'DOCENTE', label: 'Docentes' },
+  { value: 'ESTUDIANTE', label: 'Estudiantes' },
+  { value: 'INVITADO', label: 'Invitados' },
+]
+
 const estiloBarra: React.CSSProperties = {
   display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center',
   marginBottom: 18, padding: '14px 18px',
@@ -72,6 +101,9 @@ const etiquetaFiltro: React.CSSProperties = {
   fontSize: 13, color: TEXTO_SUAVE, fontWeight: 600,
 }
 
+const ejeX = { fill: TEXTO_SUAVE, fontSize: 11 }
+const ejeY = { fill: TEXTO_SUAVE, fontSize: 11 }
+
 function Reportes() {
   const navigate = useNavigate()
   const { message } = App.useApp()
@@ -85,12 +117,14 @@ function Reportes() {
   const [registros, setRegistros] = useState<any[]>([])
   const [prestamos, setPrestamos] = useState<any[]>([])
   const [usuarios, setUsuarios] = useState<any[]>([])
+  const [actividades, setActividades] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [descargando, setDescargando] = useState(false)
   const [imprimiendo, setImprimiendo] = useState(false)
   const [anio, setAnio] = useState(dayjs().year())
   const [mes, setMes] = useState(dayjs().month() + 1)
   const [usuarioFiltro, setUsuarioFiltro] = useState<number | undefined>()
+  const [tipoFiltro, setTipoFiltro] = useState<string | undefined>()
   const [soloActivos, setSoloActivos] = useState(false)
   const [tipoHoja, setTipoHoja] = useState<TipoHoja>('TODOS')
   const [alcanceHoja, setAlcanceHoja] = useState<'mes' | 'todo'>('mes')
@@ -118,8 +152,6 @@ function Reportes() {
   const mesNombre = dayjs(`${anio}-${String(mes).padStart(2, '0')}-01`)
     .toDate().toLocaleString('es-EC', { month: 'long', year: 'numeric' })
 
-  // Descarga un .xlsx con todo el historial (préstamos, registros, usuarios
-  // y libros). Es la red de seguridad ante la caída o el fin del hosting.
   const handleRespaldo = async () => {
     setDescargando(true)
     try {
@@ -132,8 +164,6 @@ function Reportes() {
     }
   }
 
-  // Imprime la hoja con datos. Con alcance "mes" usa lo ya cargado en
-  // pantalla; con "todo" pide el historial completo al backend.
   const handleImprimirDatos = async (hoja: 'uso' | 'prestamos') => {
     setImprimiendo(true)
     try {
@@ -158,14 +188,10 @@ function Reportes() {
     }
   }
 
-  // Reporte de gestión: resumen con indicadores, distribución por carrera
-  // y ranking de libros. Pensado para presentar a la institución.
   const handleImprimirReporte = async () => {
     setImprimiendo(true)
     try {
       const esMes = alcanceReporte === 'mes'
-
-      // Registros del período: el mes ya está cargado; para "todo" se pide al backend
       const regs = esMes ? registros : await exportarTodosRegistros()
       const pres = esMes ? prestamosDelMes : await exportarTodosPrestamos()
 
@@ -187,7 +213,6 @@ function Reportes() {
         }
       })
 
-      // Ranking de libros construido desde los préstamos del período
       const conteoLibros: Record<number, { titulo: string; autor: string; codigo: string; prestamos: number }> = {}
       pres.forEach((p: any) => {
         if (!p.libro) return
@@ -235,8 +260,6 @@ function Reportes() {
       setDisponibles(libros.reduce((a: number, b: any) => a + b.disponibles, 0))
       setRegistros(regs)
       setPrestamos(pres)
-      // El filtro se construye desde la tabla de usuarios (no desde los préstamos):
-      // cada persona aparece una sola vez, ordenada alfabéticamente.
       setUsuarios(
         usrs
           .filter((u: any) => u.rol === 'usuario')
@@ -246,11 +269,11 @@ function Reportes() {
   }
 
   useEffect(() => { cargarDatos() }, [anio, mes])
-
   useEffect(() => escucharDatosActualizados(cargarDatos), [anio, mes])
 
   useEffect(() => {
     getStatsPeriodo(periodoResumen, tipoUsuarioResumen, carreraResumen, materiaResumen).then(setStats)
+    getActividadesMasRealizadas(periodoResumen).then(setActividades).catch(() => setActividades([]))
   }, [periodoResumen, tipoUsuarioResumen, carreraResumen, materiaResumen])
 
   useEffect(() => {
@@ -286,29 +309,35 @@ function Reportes() {
     ? Math.max(...stats.porCarrera.map((c: any) => c.visitas))
     : 1
 
-  // ¿La fecha cae dentro del mes seleccionado en el filtro?
   const enMesSeleccionado = (f: string) => {
     if (!f) return false
     const d = new Date(f)
     return d.getFullYear() === anio && d.getMonth() + 1 === mes
   }
 
-  const registrosFiltrados = registros.filter(r =>
-    !usuarioFiltro || r.usuario?.id === usuarioFiltro
-  )
+  // Los filtros de usuario y de tipo se combinan: se puede ver "todos los
+  // estudiantes" o bajar hasta una persona concreta.
+  const registrosFiltrados = registros.filter(r => {
+    const porUsuario = !usuarioFiltro || r.usuario?.id === usuarioFiltro
+    const porTipo = !tipoFiltro || r.usuario?.tipoPersona === tipoFiltro
+    return porUsuario && porTipo
+  })
 
-  // Préstamos del mes seleccionado, sin los filtros de pantalla — es la
-  // base de la hoja impresa cuando el alcance es "mes".
   const prestamosDelMes = prestamos.filter(p => enMesSeleccionado(p.fechaPrestamo))
 
   const prestamosFiltrados = prestamos.filter(p => {
-    // Antes el selector de Mes no afectaba a los préstamos (mostraba todo el
-    // historial aunque el encabezado dijera "junio 2026"). Ahora sí se respeta.
     const porMes = enMesSeleccionado(p.fechaPrestamo)
     const porUsuario = !usuarioFiltro || p.usuario?.id === usuarioFiltro
+    const porTipo = !tipoFiltro || p.usuario?.tipoPersona === tipoFiltro
     const porEstado = !soloActivos || p.activo
-    return porMes && porUsuario && porEstado
+    return porMes && porUsuario && porTipo && porEstado
   })
+
+  // Usuarios del desplegable: si hay un tipo elegido, solo los de ese tipo
+  const usuariosDelSelector = usuarios.filter(u => !tipoFiltro || u.tipoPersona === tipoFiltro)
+
+  // Acorta un texto para que quepa en el eje de un gráfico
+  const corto = (t: string, n = 22) => t && t.length > n ? t.slice(0, n) + '…' : t
 
   const columnasRegistros = [
     {
@@ -375,8 +404,8 @@ function Reportes() {
         return (
           <div>
             <div>{new Date(f).toLocaleDateString('es-EC')}</div>
-            <div style={{ fontSize: 11, color: dias < 0 ? '#DC2626' : dias <= 3 ? '#D97706' : '#15803D', fontWeight: 600 }}>
-              {dias < 0 ? `⚠️ ${Math.abs(dias)} días vencido` : dias === 0 ? '⚠️ Vence hoy' : `${dias} días restantes`}
+            <div style={{ fontSize: 11, color: dias < 0 ? CORAL : dias <= 3 ? AMBAR : VERDE, fontWeight: 600 }}>
+              {dias < 0 ? `${Math.abs(dias)} días vencido` : dias === 0 ? 'Vence hoy' : `${dias} días restantes`}
             </div>
           </div>
         )
@@ -412,10 +441,10 @@ function Reportes() {
         : <span style={{ color: TEXTO_TENUE }}>Libro eliminado</span>,
     },
     {
-      title: 'Clics desde el catálogo público', dataIndex: 'clics', key: 'clics', width: 180, align: 'center' as const,
+      title: 'Clics', dataIndex: 'clics', key: 'clics', width: 110, align: 'center' as const,
       sorter: (a: any, b: any) => a.clics - b.clics,
       defaultSortOrder: 'descend' as any,
-      render: (clics: number) => <Tag color="cyan" style={{ fontSize: 13, padding: '2px 10px' }}>{clics}</Tag>,
+      render: (clics: number) => <Tag color="purple" style={{ fontSize: 13, padding: '2px 10px' }}>{clics}</Tag>,
     },
   ]
 
@@ -431,17 +460,17 @@ function Reportes() {
     },
     { title: 'Código', dataIndex: 'libro', key: 'codigo', width: 130, render: (l: any) => <Tag>{l.codigo}</Tag> },
     {
-      title: 'Préstamos totales', dataIndex: 'prestamos', key: 'prestamos', width: 160, align: 'center' as const,
+      title: 'Préstamos', dataIndex: 'prestamos', key: 'prestamos', width: 120, align: 'center' as const,
       sorter: (a: any, b: any) => a.prestamos - b.prestamos,
       defaultSortOrder: 'descend' as any,
-      render: (prestamos: number) => <Tag color="cyan" style={{ fontSize: 13, padding: '2px 10px' }}>{prestamos}</Tag>,
+      render: (prestamos: number) => <Tag color="red" style={{ fontSize: 13, padding: '2px 10px' }}>{prestamos}</Tag>,
     },
   ]
 
   const columnasRankingVisitas = [
     { title: 'Usuario', dataIndex: 'usuario', key: 'usuario', render: (u: any) => u.nombre },
     {
-      title: 'Visitas registradas', dataIndex: 'visitas', key: 'visitas', width: 180, align: 'center' as const,
+      title: 'Visitas', dataIndex: 'visitas', key: 'visitas', width: 120, align: 'center' as const,
       sorter: (a: any, b: any) => a.visitas - b.visitas,
       defaultSortOrder: 'descend' as any,
       render: (visitas: number) => <Tag color="cyan" style={{ fontSize: 13, padding: '2px 10px' }}>{visitas}</Tag>,
@@ -451,10 +480,10 @@ function Reportes() {
   const columnasRankingPrestamosUsuarios = [
     { title: 'Usuario', dataIndex: 'usuario', key: 'usuario', render: (u: any) => u.nombre },
     {
-      title: 'Préstamos totales', dataIndex: 'prestamos', key: 'prestamos', width: 180, align: 'center' as const,
+      title: 'Préstamos', dataIndex: 'prestamos', key: 'prestamos', width: 120, align: 'center' as const,
       sorter: (a: any, b: any) => a.prestamos - b.prestamos,
       defaultSortOrder: 'descend' as any,
-      render: (prestamos: number) => <Tag color="cyan" style={{ fontSize: 13, padding: '2px 10px' }}>{prestamos}</Tag>,
+      render: (prestamos: number) => <Tag color="orange" style={{ fontSize: 13, padding: '2px 10px' }}>{prestamos}</Tag>,
     },
   ]
 
@@ -464,10 +493,10 @@ function Reportes() {
       render: (p: string) => nombreCortoPrograma(p),
     },
     {
-      title: 'Clics desde el landing público', dataIndex: 'clics', key: 'clics', width: 180, align: 'center' as const,
+      title: 'Clics', dataIndex: 'clics', key: 'clics', width: 110, align: 'center' as const,
       sorter: (a: any, b: any) => a.clics - b.clics,
       defaultSortOrder: 'descend' as any,
-      render: (clics: number) => <Tag color="cyan" style={{ fontSize: 13, padding: '2px 10px' }}>{clics}</Tag>,
+      render: (clics: number) => <Tag color="blue" style={{ fontSize: 13, padding: '2px 10px' }}>{clics}</Tag>,
     },
   ]
 
@@ -486,6 +515,17 @@ function Reportes() {
         />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={etiquetaFiltro}>Tipo:</span>
+        <Select
+          placeholder="Todos los tipos"
+          allowClear
+          style={{ width: 160 }}
+          value={tipoFiltro}
+          onChange={val => { setTipoFiltro(val); setUsuarioFiltro(undefined) }}
+          options={OPCIONES_TIPO_USUARIO}
+        />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={etiquetaFiltro}>Usuario:</span>
         <Select
           placeholder="Todos los usuarios"
@@ -495,7 +535,7 @@ function Reportes() {
           style={{ minWidth: 220 }}
           value={usuarioFiltro}
           onChange={setUsuarioFiltro}
-          options={usuarios.map((u: any) => ({
+          options={usuariosDelSelector.map((u: any) => ({
             value: u.id,
             label: u.tipoPersona && u.tipoPersona !== 'DOCENTE'
               ? `${u.nombre} (${ETIQUETA_TIPO[u.tipoPersona] || u.tipoPersona})`
@@ -520,25 +560,12 @@ function Reportes() {
     </div>
   )
 
-  // Barra de impresión: se muestra en las pestañas de visitas y préstamos.
-  // "Hoja con datos" imprime lo registrado; "Hoja en blanco" imprime el
-  // formulario vacío para llenar a mano si el sistema no está disponible.
   const barraImpresion = (hoja: 'uso' | 'prestamos') => (
     <div style={estiloBarra}>
       <PrinterOutlined style={{ color: MARCA, fontSize: 18 }} />
       <span style={etiquetaFiltro}>Imprimir hoja:</span>
-      <Select
-        value={tipoHoja}
-        onChange={setTipoHoja}
-        style={{ width: 150 }}
-        options={OPCIONES_TIPO_HOJA}
-      />
-      <Select
-        value={alcanceHoja}
-        onChange={setAlcanceHoja}
-        style={{ width: 180 }}
-        options={OPCIONES_ALCANCE}
-      />
+      <Select value={tipoHoja} onChange={setTipoHoja} style={{ width: 150 }} options={OPCIONES_TIPO_HOJA} />
+      <Select value={alcanceHoja} onChange={setAlcanceHoja} style={{ width: 180 }} options={OPCIONES_ALCANCE} />
       <Button
         type="primary"
         icon={<PrinterOutlined />}
@@ -550,9 +577,7 @@ function Reportes() {
       </Button>
       <Button
         icon={<FileTextOutlined />}
-        onClick={() => hoja === 'uso'
-          ? imprimirPlantillaUso(tipoHoja)
-          : imprimirPlantillaPrestamos(tipoHoja)}
+        onClick={() => hoja === 'uso' ? imprimirPlantillaUso(tipoHoja) : imprimirPlantillaPrestamos(tipoHoja)}
       >
         Hoja en blanco
       </Button>
@@ -598,12 +623,7 @@ function Reportes() {
                 <div style={estiloBarra}>
                   <FilePdfOutlined style={{ color: MARCA, fontSize: 18 }} />
                   <span style={etiquetaFiltro}>Reporte de gestión:</span>
-                  <Select
-                    value={alcanceReporte}
-                    onChange={setAlcanceReporte}
-                    style={{ width: 180 }}
-                    options={OPCIONES_ALCANCE}
-                  />
+                  <Select value={alcanceReporte} onChange={setAlcanceReporte} style={{ width: 180 }} options={OPCIONES_ALCANCE} />
                   <Button
                     type="primary"
                     icon={<PrinterOutlined />}
@@ -621,77 +641,50 @@ function Reportes() {
                 <div style={estiloFiltros}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={etiquetaFiltro}>Período:</span>
-                    <Select
-                      value={periodoResumen}
-                      onChange={setPeriodoResumen}
-                      style={{ width: 160 }}
-                      options={[
-                        { value: 'dia', label: 'Último día' },
-                        { value: 'semana', label: 'Última semana' },
-                        { value: 'mes', label: 'Último mes' },
-                        { value: 'anio', label: 'Último año' },
-                        { value: 'todo', label: 'Todo el historial' },
-                      ]}
-                    />
+                    <Select value={periodoResumen} onChange={setPeriodoResumen} style={{ width: 160 }} options={OPCIONES_PERIODO} />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={etiquetaFiltro}>Tipo de usuario:</span>
                     <Select
                       value={tipoUsuarioResumen}
                       onChange={setTipoUsuarioResumen}
-                      allowClear
-                      placeholder="Todos"
-                      style={{ width: 160 }}
-                      options={[
-                        { value: 'DOCENTE', label: 'Docentes' },
-                        { value: 'ESTUDIANTE', label: 'Estudiantes' },
-                        { value: 'INVITADO', label: 'Invitados' },
-                      ]}
+                      allowClear placeholder="Todos" style={{ width: 160 }}
+                      options={OPCIONES_TIPO_USUARIO}
                     />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={etiquetaFiltro}>Carrera:</span>
                     <Select
-                      value={carreraResumen}
-                      onChange={setCarreraResumen}
-                      allowClear
-                      placeholder="Todas"
-                      showSearch
-                      optionFilterProp="label"
-                      style={{ width: 200 }}
+                      value={carreraResumen} onChange={setCarreraResumen}
+                      allowClear placeholder="Todas" showSearch optionFilterProp="label" style={{ width: 200 }}
                       options={carrerasDisponibles.map(c => ({ value: c, label: c }))}
                     />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={etiquetaFiltro}>Materia:</span>
                     <Select
-                      value={materiaResumen}
-                      onChange={setMateriaResumen}
-                      allowClear
-                      placeholder="Todas"
-                      showSearch
-                      optionFilterProp="label"
-                      style={{ width: 200 }}
+                      value={materiaResumen} onChange={setMateriaResumen}
+                      allowClear placeholder="Todas" showSearch optionFilterProp="label" style={{ width: 200 }}
                       options={materiasDisponibles.map(m => ({ value: m, label: m }))}
                     />
                   </div>
                 </div>
 
                 <div className="kpi-grid">
-                  <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('visitas')}>
+                  <div className="kpi-card" style={{ cursor: 'pointer', borderTop: `3px solid ${MARCA}` }} onClick={() => setActiveTab('visitas')}>
                     <TeamOutlined style={{ fontSize: 22, color: MARCA, marginBottom: 8 }} />
                     <Statistic title="Personas que visitaron" value={stats?.totalVisitas ?? 0} />
                     <div style={{ fontSize: 11, color: MARCA, marginTop: 4 }}>Ver detalle →</div>
                   </div>
-                  <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => { setSoloActivos(false); setActiveTab('prestamos') }}>
-                    <SwapOutlined style={{ fontSize: 22, color: MARCA, marginBottom: 8 }} />
+                  <div className="kpi-card" style={{ cursor: 'pointer', borderTop: `3px solid ${CORAL}` }} onClick={() => { setSoloActivos(false); setActiveTab('prestamos') }}>
+                    <SwapOutlined style={{ fontSize: 22, color: CORAL, marginBottom: 8 }} />
                     <Statistic title="Libros prestados" value={stats?.prestamos ?? 0} />
-                    <div style={{ fontSize: 11, color: MARCA, marginTop: 4 }}>Ver detalle →</div>
+                    <div style={{ fontSize: 11, color: CORAL, marginTop: 4 }}>Ver detalle →</div>
                   </div>
-                  <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => { setSoloActivos(false); setActiveTab('prestamos') }}>
-                    <CheckCircleOutlined style={{ fontSize: 22, color: MARCA, marginBottom: 8 }} />
+                  <div className="kpi-card" style={{ cursor: 'pointer', borderTop: `3px solid ${AMBAR}` }} onClick={() => { setSoloActivos(false); setActiveTab('prestamos') }}>
+                    <CheckCircleOutlined style={{ fontSize: 22, color: AMBAR, marginBottom: 8 }} />
                     <Statistic title="Libros devueltos" value={stats?.devoluciones ?? 0} />
-                    <div style={{ fontSize: 11, color: MARCA, marginTop: 4 }}>Ver detalle →</div>
+                    <div style={{ fontSize: 11, color: AMBAR, marginTop: 4 }}>Ver detalle →</div>
                   </div>
                 </div>
 
@@ -710,21 +703,21 @@ function Reportes() {
                   </div>
                   <div className="reporte-card">
                     <h3 className="reporte-card-titulo">
-                      <BookOutlined style={{ marginRight: 8 }} />
+                      <BookOutlined style={{ marginRight: 8, color: MARCA }} />
                       ¿Quiénes usan más la biblioteca?
                     </h3>
                     {stats?.porCarrera?.length > 0 ? (
                       <div className="carreras-lista">
-                        {stats.porCarrera.map((c: any) => (
+                        {stats.porCarrera.map((c: any, i: number) => (
                           <div key={c.carrera} className="carrera-bar-item">
                             <div className="carrera-bar-label">
                               <span>{c.carrera}</span>
-                              <strong>{c.visitas} visitas</strong>
+                              <strong style={{ color: COLORES_GRAFICO[i % COLORES_GRAFICO.length] }}>{c.visitas} visitas</strong>
                             </div>
                             <Progress
                               percent={Math.round((c.visitas / maxCarrera) * 100)}
-                              strokeColor={{ '0%': MARCA_OSCURO, '100%': MARCA }}
-                              trailColor={MARCA_FONDO} strokeWidth={10} strokeLinecap="round" showInfo={false}
+                              strokeColor={COLORES_GRAFICO[i % COLORES_GRAFICO.length]}
+                              trailColor="#F0F5F6" strokeWidth={10} strokeLinecap="round" showInfo={false}
                             />
                           </div>
                         ))}
@@ -735,6 +728,35 @@ function Reportes() {
                   </div>
                 </div>
 
+                {/* Actividades: barras horizontales, porque los nombres son largos */}
+                {actividades.length > 0 && (
+                  <div className="reportes-grid-inferior" style={{ marginTop: 22 }}>
+                    <div className="reporte-card" style={{ gridColumn: '1 / -1' }}>
+                      <h3 className="reporte-card-titulo">
+                        <ThunderboltOutlined style={{ marginRight: 8, color: AMBAR }} />
+                        Actividades más realizadas en la biblioteca
+                      </h3>
+                      <ResponsiveContainer width="100%" height={Math.max(220, actividades.length * 46)}>
+                        <BarChart
+                          data={actividades}
+                          layout="vertical"
+                          margin={{ left: 20, right: 30 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={REJILLA} />
+                          <XAxis type="number" allowDecimals={false} tick={ejeX} />
+                          <YAxis type="category" dataKey="actividad" width={170} tick={ejeY} />
+                          <RTooltip />
+                          <Bar dataKey="veces" name="Veces registrada" barSize={ANCHO_BARRA} radius={[0, 6, 6, 0]}>
+                            {actividades.map((_: any, i: number) => (
+                              <Cell key={i} fill={COLORES_GRAFICO[i % COLORES_GRAFICO.length]} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
                 {stats?.porCarrera?.length > 0 && (
                   <div className="reportes-grid-inferior" style={{ marginTop: 22 }}>
                     <div className="reporte-card" style={{ gridColumn: '1 / -1' }}>
@@ -743,13 +765,9 @@ function Reportes() {
                         <PieChart>
                           <Pie
                             data={stats.porCarrera}
-                            dataKey="visitas"
-                            nameKey="carrera"
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={70}
-                            outerRadius={110}
-                            paddingAngle={2}
+                            dataKey="visitas" nameKey="carrera"
+                            cx="50%" cy="50%"
+                            innerRadius={70} outerRadius={112} paddingAngle={3}
                             label={(d: any) => `${d.visitas}`}
                           >
                             {stats.porCarrera.map((_: any, i: number) => (
@@ -772,41 +790,42 @@ function Reportes() {
                         <BarChart data={comparativaPorTipo.map((t: any) => ({
                           ...t,
                           etiqueta: t.tipoPersona === 'DOCENTE' ? 'Docentes' : t.tipoPersona === 'ESTUDIANTE' ? 'Estudiantes' : 'Invitados',
-                        }))} barGap={6}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E8F0F1" />
-                          <XAxis dataKey="etiqueta" tick={{ fill: TEXTO_SUAVE, fontSize: 12 }} />
-                          <YAxis allowDecimals={false} tick={{ fill: TEXTO_SUAVE, fontSize: 12 }} />
+                        }))} barGap={8}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={REJILLA} />
+                          <XAxis dataKey="etiqueta" tick={ejeX} />
+                          <YAxis allowDecimals={false} tick={ejeY} />
                           <RTooltip />
                           <Legend />
-                          <Bar dataKey="visitas" name="Visitas" fill={MARCA_OSCURO} radius={[6, 6, 0, 0]} />
-                          <Bar dataKey="prestamos" name="Préstamos" fill={MARCA} radius={[6, 6, 0, 0]} />
-                          <Bar dataKey="devoluciones" name="Devoluciones" fill={MARCA_CLARO} radius={[6, 6, 0, 0]} />
+                          <Bar dataKey="visitas" name="Visitas" fill={MARCA} barSize={ANCHO_BARRA} radius={[6, 6, 0, 0]} />
+                          <Bar dataKey="prestamos" name="Préstamos" fill={CORAL} barSize={ANCHO_BARRA} radius={[6, 6, 0, 0]} />
+                          <Bar dataKey="devoluciones" name="Devoluciones" fill={AMBAR} barSize={ANCHO_BARRA} radius={[6, 6, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
                 )}
 
+                {/* Serie temporal: líneas en vez de barras, muestran tendencia */}
                 {comparativaAnual.length > 0 && (
                   <div className="reportes-grid-inferior" style={{ marginTop: 22 }}>
                     <div className="reporte-card" style={{ gridColumn: '1 / -1' }}>
-                      <h3 className="reporte-card-titulo">Comparativa entre años</h3>
+                      <h3 className="reporte-card-titulo">Evolución entre años</h3>
                       {comparativaAnual.length === 1 && (
                         <p style={{ color: TEXTO_TENUE, fontSize: 13, marginBottom: 8 }}>
                           Todavía hay datos de un solo año — este gráfico se vuelve más útil a medida que se acumula historial de años siguientes.
                         </p>
                       )}
                       <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={comparativaAnual.map((a: any) => ({ ...a, anio: String(a.anio) }))} barGap={6}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E8F0F1" />
-                          <XAxis dataKey="anio" tick={{ fill: TEXTO_SUAVE, fontSize: 12 }} />
-                          <YAxis allowDecimals={false} tick={{ fill: TEXTO_SUAVE, fontSize: 12 }} />
+                        <LineChart data={comparativaAnual.map((a: any) => ({ ...a, anio: String(a.anio) }))}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={REJILLA} />
+                          <XAxis dataKey="anio" tick={ejeX} />
+                          <YAxis allowDecimals={false} tick={ejeY} />
                           <RTooltip />
                           <Legend />
-                          <Bar dataKey="usos" name="Uso de sala" fill={MARCA_OSCURO} radius={[6, 6, 0, 0]} />
-                          <Bar dataKey="prestamos" name="Préstamos" fill={MARCA} radius={[6, 6, 0, 0]} />
-                          <Bar dataKey="devoluciones" name="Devoluciones" fill={MARCA_CLARO} radius={[6, 6, 0, 0]} />
-                        </BarChart>
+                          <Line type="monotone" dataKey="usos" name="Uso de sala" stroke={MARCA} strokeWidth={3} dot={{ r: 5, fill: MARCA }} />
+                          <Line type="monotone" dataKey="prestamos" name="Préstamos" stroke={CORAL} strokeWidth={3} dot={{ r: 5, fill: CORAL }} />
+                          <Line type="monotone" dataKey="devoluciones" name="Devoluciones" stroke={AMBAR} strokeWidth={3} dot={{ r: 5, fill: AMBAR }} />
+                        </LineChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
@@ -864,65 +883,37 @@ function Reportes() {
                 <div style={estiloFiltros}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={etiquetaFiltro}>Periodo:</span>
-                    <Select
-                      value={periodoAnalitica}
-                      onChange={setPeriodoAnalitica}
-                      style={{ width: 160 }}
-                      options={[
-                        { value: 'dia', label: 'Último día' },
-                        { value: 'semana', label: 'Última semana' },
-                        { value: 'mes', label: 'Último mes' },
-                        { value: 'anio', label: 'Último año' },
-                        { value: 'todo', label: 'Todo el historial' },
-                      ]}
-                    />
+                    <Select value={periodoAnalitica} onChange={setPeriodoAnalitica} style={{ width: 160 }} options={OPCIONES_PERIODO} />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={etiquetaFiltro}>Tipo de usuario:</span>
                     <Select
-                      value={tipoUsuarioAnalitica}
-                      onChange={setTipoUsuarioAnalitica}
-                      allowClear
-                      placeholder="Todos"
-                      style={{ width: 160 }}
-                      options={[
-                        { value: 'DOCENTE', label: 'Docentes' },
-                        { value: 'ESTUDIANTE', label: 'Estudiantes' },
-                        { value: 'INVITADO', label: 'Invitados' },
-                      ]}
+                      value={tipoUsuarioAnalitica} onChange={setTipoUsuarioAnalitica}
+                      allowClear placeholder="Todos" style={{ width: 160 }}
+                      options={OPCIONES_TIPO_USUARIO}
                     />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={etiquetaFiltro}>Carrera:</span>
                     <Select
-                      value={carreraAnalitica}
-                      onChange={setCarreraAnalitica}
-                      allowClear
-                      placeholder="Todas"
-                      showSearch
-                      optionFilterProp="label"
-                      style={{ width: 200 }}
+                      value={carreraAnalitica} onChange={setCarreraAnalitica}
+                      allowClear placeholder="Todas" showSearch optionFilterProp="label" style={{ width: 200 }}
                       options={carrerasDisponibles.map(c => ({ value: c, label: c }))}
                     />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={etiquetaFiltro}>Materia:</span>
                     <Select
-                      value={materiaAnalitica}
-                      onChange={setMateriaAnalitica}
-                      allowClear
-                      placeholder="Todas"
-                      showSearch
-                      optionFilterProp="label"
-                      style={{ width: 200 }}
+                      value={materiaAnalitica} onChange={setMateriaAnalitica}
+                      allowClear placeholder="Todas" showSearch optionFilterProp="label" style={{ width: 200 }}
                       options={materiasDisponibles.map(m => ({ value: m, label: m }))}
                     />
                   </div>
                 </div>
 
                 <div className="kpi-grid">
-                  <div className="kpi-card">
-                    <TeamOutlined style={{ fontSize: 22, color: MARCA, marginBottom: 8 }} />
+                  <div className="kpi-card" style={{ borderTop: `3px solid ${CELESTE}` }}>
+                    <TeamOutlined style={{ fontSize: 22, color: CELESTE, marginBottom: 8 }} />
                     <Statistic title="Visitas al catálogo público" value={visitasPublicas} />
                   </div>
                 </div>
@@ -930,17 +921,21 @@ function Reportes() {
                 <div className="reportes-grid-inferior">
                   <div className="reporte-card">
                     <h3 className="reporte-card-titulo">
-                      <TeamOutlined style={{ marginRight: 8, color: MARCA }} />
+                      <TeamOutlined style={{ marginRight: 8, color: CELESTE }} />
                       Carreras con más interés (clics en el landing)
                     </h3>
                     {rankingCarreras.length > 0 && (
                       <ResponsiveContainer width="100%" height={260}>
-                        <BarChart data={[...rankingCarreras].sort((a: any, b: any) => b.clics - a.clics).slice(0, 5).map((r: any) => ({ nombre: nombreCortoPrograma(r.programa), clics: r.clics }))}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E8F0F1" />
-                          <XAxis dataKey="nombre" tick={{ fontSize: 11, fill: TEXTO_SUAVE }} interval={0} angle={-25} textAnchor="end" height={80} />
-                          <YAxis allowDecimals={false} tick={{ fill: TEXTO_SUAVE, fontSize: 12 }} />
+                        <BarChart
+                          data={[...rankingCarreras].sort((a: any, b: any) => b.clics - a.clics).slice(0, 5)
+                            .map((r: any) => ({ nombre: corto(nombreCortoPrograma(r.programa)), clics: r.clics }))}
+                          layout="vertical" margin={{ left: 10, right: 24 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={REJILLA} />
+                          <XAxis type="number" allowDecimals={false} tick={ejeX} />
+                          <YAxis type="category" dataKey="nombre" width={140} tick={ejeY} />
                           <RTooltip />
-                          <Bar dataKey="clics" fill={MARCA} radius={[6, 6, 0, 0]} />
+                          <Bar dataKey="clics" fill={CELESTE} barSize={ANCHO_BARRA} radius={[0, 6, 6, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}
@@ -955,17 +950,21 @@ function Reportes() {
                   </div>
                   <div className="reporte-card">
                     <h3 className="reporte-card-titulo">
-                      <BookOutlined style={{ marginRight: 8, color: MARCA }} />
+                      <BookOutlined style={{ marginRight: 8, color: VIOLETA }} />
                       Libros más buscados en el catálogo público
                     </h3>
                     {librosMasBuscados.length > 0 && (
                       <ResponsiveContainer width="100%" height={260}>
-                        <BarChart data={[...librosMasBuscados].sort((a: any, b: any) => b.clics - a.clics).slice(0, 5).map((r: any) => ({ nombre: r.libro ? (r.libro.titulo.length > 20 ? r.libro.titulo.slice(0, 20) + '…' : r.libro.titulo) : 'Eliminado', clics: r.clics }))}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E8F0F1" />
-                          <XAxis dataKey="nombre" tick={{ fontSize: 10, fill: TEXTO_SUAVE }} interval={0} angle={-25} textAnchor="end" height={80} />
-                          <YAxis allowDecimals={false} tick={{ fill: TEXTO_SUAVE, fontSize: 12 }} />
+                        <BarChart
+                          data={[...librosMasBuscados].sort((a: any, b: any) => b.clics - a.clics).slice(0, 5)
+                            .map((r: any) => ({ nombre: corto(r.libro?.titulo ?? 'Eliminado'), clics: r.clics }))}
+                          layout="vertical" margin={{ left: 10, right: 24 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={REJILLA} />
+                          <XAxis type="number" allowDecimals={false} tick={ejeX} />
+                          <YAxis type="category" dataKey="nombre" width={140} tick={ejeY} />
                           <RTooltip />
-                          <Bar dataKey="clics" fill={MARCA_OSCURO} radius={[6, 6, 0, 0]} />
+                          <Bar dataKey="clics" fill={VIOLETA} barSize={ANCHO_BARRA} radius={[0, 6, 6, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}
@@ -983,17 +982,21 @@ function Reportes() {
                 <div className="reportes-grid-inferior" style={{ marginTop: 22 }}>
                   <div className="reporte-card">
                     <h3 className="reporte-card-titulo">
-                      <SwapOutlined style={{ marginRight: 8, color: MARCA }} />
+                      <SwapOutlined style={{ marginRight: 8, color: CORAL }} />
                       Libros por número de préstamos
                     </h3>
                     {rankingLibros.length > 0 && (
                       <ResponsiveContainer width="100%" height={260}>
-                        <BarChart data={[...rankingLibros].sort((a: any, b: any) => b.prestamos - a.prestamos).slice(0, 5).map((r: any) => ({ nombre: r.libro.titulo.length > 20 ? r.libro.titulo.slice(0, 20) + '…' : r.libro.titulo, prestamos: r.prestamos }))}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E8F0F1" />
-                          <XAxis dataKey="nombre" tick={{ fontSize: 10, fill: TEXTO_SUAVE }} interval={0} angle={-25} textAnchor="end" height={80} />
-                          <YAxis allowDecimals={false} tick={{ fill: TEXTO_SUAVE, fontSize: 12 }} />
+                        <BarChart
+                          data={[...rankingLibros].sort((a: any, b: any) => b.prestamos - a.prestamos).slice(0, 5)
+                            .map((r: any) => ({ nombre: corto(r.libro.titulo), prestamos: r.prestamos }))}
+                          layout="vertical" margin={{ left: 10, right: 24 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={REJILLA} />
+                          <XAxis type="number" allowDecimals={false} tick={ejeX} />
+                          <YAxis type="category" dataKey="nombre" width={140} tick={ejeY} />
                           <RTooltip />
-                          <Bar dataKey="prestamos" fill={MARCA} radius={[6, 6, 0, 0]} />
+                          <Bar dataKey="prestamos" fill={CORAL} barSize={ANCHO_BARRA} radius={[0, 6, 6, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}
@@ -1013,12 +1016,16 @@ function Reportes() {
                     </h3>
                     {rankingVisitas.length > 0 && (
                       <ResponsiveContainer width="100%" height={260}>
-                        <BarChart data={[...rankingVisitas].sort((a: any, b: any) => b.visitas - a.visitas).slice(0, 5).map((r: any) => ({ nombre: r.usuario.nombre, visitas: r.visitas }))}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E8F0F1" />
-                          <XAxis dataKey="nombre" tick={{ fontSize: 10, fill: TEXTO_SUAVE }} interval={0} angle={-25} textAnchor="end" height={80} />
-                          <YAxis allowDecimals={false} tick={{ fill: TEXTO_SUAVE, fontSize: 12 }} />
+                        <BarChart
+                          data={[...rankingVisitas].sort((a: any, b: any) => b.visitas - a.visitas).slice(0, 5)
+                            .map((r: any) => ({ nombre: corto(r.usuario.nombre), visitas: r.visitas }))}
+                          layout="vertical" margin={{ left: 10, right: 24 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={REJILLA} />
+                          <XAxis type="number" allowDecimals={false} tick={ejeX} />
+                          <YAxis type="category" dataKey="nombre" width={140} tick={ejeY} />
                           <RTooltip />
-                          <Bar dataKey="visitas" fill={MARCA_MEDIO} radius={[6, 6, 0, 0]} />
+                          <Bar dataKey="visitas" fill={MARCA} barSize={ANCHO_BARRA} radius={[0, 6, 6, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}
@@ -1036,17 +1043,21 @@ function Reportes() {
                 <div className="reportes-grid-inferior" style={{ marginTop: 22 }}>
                   <div className="reporte-card" style={{ gridColumn: '1 / -1' }}>
                     <h3 className="reporte-card-titulo">
-                      <TeamOutlined style={{ marginRight: 8, color: MARCA }} />
+                      <TeamOutlined style={{ marginRight: 8, color: AMBAR }} />
                       Usuarios por número de préstamos
                     </h3>
                     {rankingPrestamosUsuarios.length > 0 && (
                       <ResponsiveContainer width="100%" height={260}>
-                        <BarChart data={[...rankingPrestamosUsuarios].sort((a: any, b: any) => b.prestamos - a.prestamos).slice(0, 5).map((r: any) => ({ nombre: r.usuario.nombre, prestamos: r.prestamos }))}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E8F0F1" />
-                          <XAxis dataKey="nombre" tick={{ fontSize: 10, fill: TEXTO_SUAVE }} interval={0} angle={-25} textAnchor="end" height={80} />
-                          <YAxis allowDecimals={false} tick={{ fill: TEXTO_SUAVE, fontSize: 12 }} />
+                        <BarChart
+                          data={[...rankingPrestamosUsuarios].sort((a: any, b: any) => b.prestamos - a.prestamos).slice(0, 8)
+                            .map((r: any) => ({ nombre: corto(r.usuario.nombre), prestamos: r.prestamos }))}
+                          layout="vertical" margin={{ left: 10, right: 24 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={REJILLA} />
+                          <XAxis type="number" allowDecimals={false} tick={ejeX} />
+                          <YAxis type="category" dataKey="nombre" width={160} tick={ejeY} />
                           <RTooltip />
-                          <Bar dataKey="prestamos" fill={MARCA_MEDIO} radius={[6, 6, 0, 0]} />
+                          <Bar dataKey="prestamos" fill={AMBAR} barSize={ANCHO_BARRA} radius={[0, 6, 6, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}
