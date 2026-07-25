@@ -624,3 +624,92 @@ export function imprimirCertificado(d: DatosCertificado) {
 
   abrirVentana(html)
 }
+// ─────────────────────────────────────────────────────────────
+// Impresión de la pestaña de ANÁLISIS (gráficos + rankings) en A4.
+//
+// Los gráficos son SVG de Recharts ya renderizados en pantalla. En vez de
+// reconstruirlos (frágil), se clonan tal cual — así conservan sus colores y
+// formas reales. Cada sección evita cortarse a la mitad entre páginas.
+// ─────────────────────────────────────────────────────────────
+
+export interface SeccionAnalisis {
+  titulo: string
+  // HTML del gráfico (SVG serializado) y/o una tabla, lo que aplique
+  graficoSvg?: string
+  tablaHtml?: string
+}
+
+export function imprimirAnalisis(secciones: SeccionAnalisis[], periodo: string) {
+  const logo = `${window.location.origin}/logo-sudamericano.png`
+
+  const bloques = secciones.map(s => `
+    <section class="bloque">
+      <h2>${s.titulo}</h2>
+      ${s.graficoSvg ? `<div class="grafico">${s.graficoSvg}</div>` : ''}
+      ${s.tablaHtml ?? ''}
+    </section>
+  `).join('')
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Análisis de la biblioteca</title>
+<style>
+  @page { size: A4 portrait; margin: 14mm 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #1A2332; margin: 0; font-size: 11px; }
+
+  .cabecera {
+    display: flex; align-items: center; gap: 14px;
+    border-bottom: 2px solid #00A9A5; padding-bottom: 10px; margin-bottom: 6px;
+  }
+  .cabecera img { height: 46px; }
+  .cabecera h1 { font-size: 16px; margin: 0; color: #007D7A; }
+  .cabecera h2 { font-size: 11px; margin: 3px 0 0; font-weight: normal; color: #555; }
+
+  .periodo { font-size: 11px; color: #666; margin: 0 0 12px; }
+
+  /* Cada bloque (gráfico o ranking) no se parte entre páginas */
+  .bloque { page-break-inside: avoid; margin-bottom: 20px; }
+  .bloque h2 {
+    font-size: 13px; color: #007D7A; margin: 0 0 8px;
+    border-left: 4px solid #00A9A5; padding-left: 8px;
+  }
+
+  /* El SVG del gráfico se ajusta al ancho de la hoja conservando proporción */
+  .grafico { width: 100%; text-align: center; }
+  .grafico svg { max-width: 100%; height: auto; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  th, td { border: 1px solid #D6E4E5; padding: 5px 8px; text-align: left; font-size: 10.5px; }
+  th { background: #E6F7F6; color: #007D7A; }
+  tr:nth-child(even) td { background: #F7FBFB; }
+
+  .pie {
+    margin-top: 18px; padding-top: 8px; border-top: 1px solid #DDD;
+    font-size: 9px; color: #999; text-align: center;
+  }
+
+  @media print {
+    /* Chrome respeta los colores de fondo/relleno al imprimir */
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+  <div class="cabecera">
+    <img src="${logo}" alt="">
+    <div>
+      <h1>Análisis de la Biblioteca Daniel Perazzo</h1>
+      <h2>Instituto de Tecnologías Sudamericano · Cuenca</h2>
+    </div>
+  </div>
+  ${periodo ? `<p class="periodo">Período: ${periodo}</p>` : ''}
+  ${bloques}
+  <div class="pie">Generado por el Sistema de Gestión Bibliotecaria · ${new Date().toLocaleDateString('es-EC')}</div>
+</body>
+</html>`
+
+  abrirVentana(html)
+}

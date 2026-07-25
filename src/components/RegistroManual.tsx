@@ -291,7 +291,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
           size="large"
         >
           <Input
-            placeholder="nombre.apellido o nombre de la persona"
+            placeholder=""
             prefix={<SearchOutlined style={{ color: '#9CA3AF' }} />}
             suffix={<span style={{ color: '#94A3B8', fontSize: 13 }}>{DOMINIO}</span>}
             onPressEnter={buscar}

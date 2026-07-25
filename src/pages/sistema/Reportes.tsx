@@ -17,8 +17,9 @@ import { descargarRespaldoExcel } from '../../utils/respaldo'
 import {
   imprimirPlantillaUso, imprimirPlantillaPrestamos,
   imprimirRegistrosUso, imprimirPrestamos, imprimirReporteGestion,
+  imprimirAnalisis,
 } from '../../utils/impresion'
-import type { TipoHoja } from '../../utils/impresion'
+import type { TipoHoja, SeccionAnalisis } from '../../utils/impresion'
 import { escucharDatosActualizados } from '../../utils/refresco'
 import { Modal } from 'antd'
 import { SafetyCertificateOutlined } from '@ant-design/icons'
@@ -199,6 +200,35 @@ function Reportes() {
     } finally {
       setImprimiendo(false)
     }
+  }
+
+  // Captura los gráficos ya renderizados (SVG de Recharts) de la pestaña que
+  // esté abierta y los envía a una hoja A4. Recorre cada tarjeta visible, toma
+  // su título y su SVG tal cual está en pantalla — conserva colores y formas.
+  const handleImprimirAnalisis = () => {
+    // El panel activo de Ant Design Tabs es el que no está oculto
+    const panelActivo = document.querySelector('.ant-tabs-tabpane-active')
+    if (!panelActivo) return
+
+    const secciones: SeccionAnalisis[] = []
+    panelActivo.querySelectorAll('.reporte-card').forEach(card => {
+      const titulo = card.querySelector('.reporte-card-titulo')?.textContent?.trim() || 'Gráfico'
+      const svg = card.querySelector('svg')
+      const tabla = card.querySelector('table')
+      if (svg || tabla) {
+        secciones.push({
+          titulo,
+          graficoSvg: svg ? svg.outerHTML : undefined,
+          tablaHtml: tabla ? tabla.outerHTML : undefined,
+        })
+      }
+    })
+
+    if (secciones.length === 0) {
+      message.info('No hay gráficos para imprimir en esta pestaña')
+      return
+    }
+    imprimirAnalisis(secciones, mesNombre)
   }
 
   const handleImprimirReporte = async () => {
@@ -668,6 +698,12 @@ function Reportes() {
                   >
                     Imprimir reporte
                   </Button>
+                  <Button
+                    icon={<PrinterOutlined />}
+                    onClick={handleImprimirAnalisis}
+                  >
+                    Imprimir gráficos
+                  </Button>
                   <span style={{ fontSize: 11, color: TEXTO_SUAVE, marginLeft: 'auto' }}>
                     Resumen con indicadores, uso por carrera y libros más prestados.
                   </span>
@@ -936,14 +972,14 @@ function Reportes() {
                       options={carrerasDisponibles.map(c => ({ value: c, label: c }))}
                     />
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={etiquetaFiltro}>Materia:</span>
-                    <Select
-                      value={materiaAnalitica} onChange={setMateriaAnalitica}
-                      allowClear placeholder="Todas" showSearch optionFilterProp="label" style={{ width: 200 }}
-                      options={materiasDisponibles.map(m => ({ value: m, label: m }))}
-                    />
-                  </div>
+                  <Button
+                    type="primary"
+                    icon={<PrinterOutlined />}
+                    onClick={handleImprimirAnalisis}
+                    style={{ background: MARCA, borderColor: MARCA, marginLeft: 'auto' }}
+                  >
+                    Imprimir análisis
+                  </Button>
                 </div>
 
                 <div className="kpi-grid">
