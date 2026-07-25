@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { Button, Input, Select, App, AutoComplete } from 'antd'
+import { Button, Input, Select, App, AutoComplete, Tag } from 'antd'
 import {
   IdcardOutlined, ReadOutlined, UserAddOutlined,
-  ArrowLeftOutlined, MailOutlined,
+  ArrowLeftOutlined, MailOutlined, SearchOutlined,
 } from '@ant-design/icons'
 import { getCarreras, buscarPorEmail, buscarPorDocumento, buscarUsuarios, crearUsuario } from '../api/biblioteca'
 import type { PasoSelector } from '../config/llaverosGenerales'
@@ -13,8 +13,6 @@ import { validarDocumento, soloDigitos } from '../utils/documento'
 
 type PasoManual = 'tipo' | PasoSelector
 
-// Dominio institucional: el bibliotecario solo escribe la parte de antes de la
-// arroba y el sistema completa el resto, para no teclear lo mismo cada vez.
 const DOMINIO = '@sudamericano.edu.ec'
 
 // Une la parte local con el dominio. Si el usuario ya escribió una arroba
@@ -25,6 +23,15 @@ function componerCorreo(parteLocal: string): string {
   if (limpio.includes('@')) return limpio
   return limpio + DOMINIO
 }
+
+// Cada tipo de usuario tiene su identidad visual (título, color, icono), para
+// que el bibliotecario siempre sepa a quién está buscando o registrando, sin
+// importar si llegó por clic o por un llavero/tarjeta general.
+const META_TIPO = {
+  docente: { titulo: 'Docente', color: 'cyan', icono: <IdcardOutlined /> },
+  estudiante: { titulo: 'Estudiante', color: 'purple', icono: <ReadOutlined /> },
+  invitado: { titulo: 'Invitado / externo', color: 'magenta', icono: <UserAddOutlined /> },
+} as const
 
 interface Props {
   // Paso en el que arranca: 'tipo' (menú) si no se indica.
@@ -69,8 +76,6 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
   const [creandoInvitado, setCreandoInvitado] = useState(false)
 
   // ── Autocompletado por nombre o correo (docente / estudiante) ──
-  // Guarda las coincidencias devueltas por el backend para poder recuperar
-  // el usuario completo cuando se elige una opción.
   const [sugerencias, setSugerencias] = useState<any[]>([])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -78,9 +83,8 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
     getCarreras().then((data: any[]) => setCarrerasDisponibles(data.map(c => c.nombre)))
   }, [])
 
-  // Busca coincidencias mientras se escribe, con un pequeño retardo para no
-  // disparar una petición por cada tecla. Filtra por tipoPersona para que el
-  // flujo de docente no sugiera estudiantes y viceversa.
+  // Busca coincidencias mientras se escribe, filtrando por el tipo en curso
+  // para que el flujo de docente no sugiera estudiantes y viceversa.
   const buscarSugerencias = (texto: string, tipoPersona: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (texto.trim().length < 2) { setSugerencias([]); return }
@@ -94,7 +98,6 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
     }, 300)
   }
 
-  // Opciones para el AutoComplete: muestra nombre y correo en cada fila.
   const opcionesSugerencia = sugerencias.map(u => ({
     value: String(u.id),
     label: (
@@ -105,18 +108,15 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
     ),
   }))
 
-  // Al elegir una coincidencia, se entra directo con ese usuario ya registrado.
   const elegirSugerencia = (id: string) => {
     const usuario = sugerencias.find(u => String(u.id) === id)
     if (usuario) onSeleccionar(usuario)
   }
 
   // ── Flujo Docente ──
-  // El correo institucional es el identificador único, así no se crean
-  // docentes duplicados por diferencias de escritura del nombre.
   const buscarDocente = async () => {
     const correo = componerCorreo(emailDocente)
-    if (!correo) { message.warning('Ingresa el correo o el nombre'); return }
+    if (!correo) { message.warning('Escribe el correo para buscar'); return }
     setBuscandoDocente(true)
     setDocenteNoEncontrado(false)
     try {
@@ -124,6 +124,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
       if (encontrado) {
         onSeleccionar(encontrado)
       } else {
+        // No existe → pasar directo a registro (tu punto 1)
         setDocenteNoEncontrado(true)
       }
     } catch {
@@ -166,7 +167,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
   // ── Flujo Estudiante ──
   const buscarEstudiante = async () => {
     const correo = componerCorreo(emailEstudiante)
-    if (!correo) { message.warning('Ingresa el correo o el nombre'); return }
+    if (!correo) { message.warning('Escribe el correo para buscar'); return }
     setBuscandoEstudiante(true)
     setEstudianteNoEncontrado(false)
     try {
@@ -251,9 +252,25 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
     }
   }
 
-  // Campo de correo con dominio fijo a la derecha: el bibliotecario escribe
-  // solo la parte local. Encima, un buscador por nombre o correo que muestra
-  // coincidencias ya registradas mientras se escribe.
+  // Encabezado con el tipo de usuario en curso: título claro + tag de color.
+  // Así el bibliotecario siempre sabe a quién está buscando/registrando.
+  const encabezadoTipo = (tipo: 'docente' | 'estudiante' | 'invitado', accion: 'Buscar' | 'Registrar') => {
+    const meta = META_TIPO[tipo]
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <span style={{ fontSize: 20, color: 'var(--marca)' }}>{meta.icono}</span>
+        <span style={{ fontSize: 17, fontWeight: 700, color: '#12303A' }}>
+          {accion} {meta.titulo.toLowerCase()}
+        </span>
+        <Tag color={meta.color} style={{ margin: 0, marginLeft: 'auto' }}>{meta.titulo}</Tag>
+      </div>
+    )
+  }
+
+  // Bloque de búsqueda unificado (docente / estudiante). Un solo campo con el
+  // dominio precargado; el autocompletado sugiere coincidencias ya registradas,
+  // y tanto Enter como el botón Buscar disparan la búsqueda. Si no existe,
+  // el flujo pasa solo a la parte de registro.
   const bloqueBusqueda = (
     tipoPersona: 'DOCENTE' | 'ESTUDIANTE',
     emailValor: string,
@@ -263,30 +280,47 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
     buscando: boolean,
   ) => (
     <>
-      <label className="field-label">Buscar por nombre o correo</label>
-      <AutoComplete
-        options={opcionesSugerencia}
-        onSearch={texto => buscarSugerencias(texto, tipoPersona)}
-        onSelect={elegirSugerencia}
-        style={{ width: '100%', marginBottom: 12 }}
-        size="large"
-        placeholder="Escribe el nombre o correo de alguien ya registrado"
-      />
-
-      <label className="field-label">O ingresa el correo para registrar</label>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-        <Input
-          placeholder="nombre.apellido"
-          prefix={<MailOutlined style={{ color: '#9CA3AF' }} />}
-          suffix={<span style={{ color: '#94A3B8', fontSize: 13 }}>{DOMINIO}</span>}
+      <label className="field-label">Correo institucional o nombre</label>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <AutoComplete
+          options={opcionesSugerencia}
+          onSearch={texto => { buscarSugerencias(texto, tipoPersona); setEmail(texto); onNoEncontrado() }}
+          onSelect={elegirSugerencia}
           value={emailValor}
-          onChange={e => { setEmail(e.target.value); onNoEncontrado() }}
+          style={{ flex: 1 }}
           size="large"
-          onPressEnter={buscar}
-        />
-        <Button size="large" onClick={buscar} loading={buscando}>Buscar</Button>
+        >
+          <Input
+            placeholder="nombre.apellido o nombre de la persona"
+            prefix={<SearchOutlined style={{ color: '#9CA3AF' }} />}
+            suffix={<span style={{ color: '#94A3B8', fontSize: 13 }}>{DOMINIO}</span>}
+            onPressEnter={buscar}
+          />
+        </AutoComplete>
+        <Button type="primary" size="large" icon={<SearchOutlined />} onClick={buscar} loading={buscando}
+          style={{ background: 'var(--marca)', borderColor: 'var(--marca)' }}>
+          Buscar
+        </Button>
       </div>
+      <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 6 }}>
+        Escribe para ver coincidencias ya registradas. Si no aparece, presiona Buscar o Enter para registrarlo.
+      </p>
     </>
+  )
+
+  // Muestra fijo, en la parte de registro, a quién se está registrando —
+  // reemplaza al buscador (que ya no aporta) para no confundir.
+  const cintaCorreo = (correo: string) => (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      background: '#E6F7F6', border: '1px solid #9FDEDC',
+      borderRadius: 8, padding: '10px 14px', marginBottom: 16,
+    }}>
+      <MailOutlined style={{ color: '#00796B' }} />
+      <span style={{ fontSize: 13, color: '#12303A' }}>
+        Registrando: <strong>{correo}</strong>
+      </span>
+    </div>
   )
 
   return (
@@ -325,17 +359,22 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
 
       {pasoManual === 'docente' && (
         <div className="form-field">
-          {bloqueBusqueda('DOCENTE', emailDocente, setEmailDocente,
-            () => setDocenteNoEncontrado(false), buscarDocente, buscandoDocente)}
-
-          {docenteNoEncontrado && (
+          {/* Mientras busca: encabezado "Buscar docente" + buscador.
+              Al no encontrar: encabezado "Registrar docente" + cinta con el correo,
+              y el buscador desaparece para no confundir (tu punto 3). */}
+          {!docenteNoEncontrado ? (
             <>
-              <p style={{ fontSize: 13, color: '#94A3B8', margin: '4px 0 16px' }}>
-                No encontramos este correo — completa los datos para registrarlo por primera vez.
-              </p>
+              {encabezadoTipo('docente', 'Buscar')}
+              {bloqueBusqueda('DOCENTE', emailDocente, setEmailDocente,
+                () => setDocenteNoEncontrado(false), buscarDocente, buscandoDocente)}
+            </>
+          ) : (
+            <>
+              {encabezadoTipo('docente', 'Registrar')}
+              {cintaCorreo(componerCorreo(emailDocente))}
               <div className="form-field">
                 <label className="field-label">Apellidos</label>
-                <Input value={apellidosDocente} onChange={e => setApellidosDocente(e.target.value)} size="large" placeholder="Ej: PÉREZ GARCÍA" style={{ marginBottom: 10 }} />
+                <Input value={apellidosDocente} onChange={e => setApellidosDocente(e.target.value)} size="large" autoFocus placeholder="Ej: PÉREZ GARCÍA" style={{ marginBottom: 10 }} />
                 <label className="field-label">Nombres</label>
                 <Input value={nombresDocente} onChange={e => setNombresDocente(e.target.value)} size="large" placeholder="Ej: JUAN CARLOS" />
               </div>
@@ -357,17 +396,19 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
 
       {pasoManual === 'estudiante' && (
         <div className="form-field">
-          {bloqueBusqueda('ESTUDIANTE', emailEstudiante, setEmailEstudiante,
-            () => setEstudianteNoEncontrado(false), buscarEstudiante, buscandoEstudiante)}
-
-          {estudianteNoEncontrado && (
+          {!estudianteNoEncontrado ? (
             <>
-              <p style={{ fontSize: 13, color: '#94A3B8', margin: '4px 0 16px' }}>
-                No encontramos este correo — completa los datos para registrarlo por primera vez.
-              </p>
+              {encabezadoTipo('estudiante', 'Buscar')}
+              {bloqueBusqueda('ESTUDIANTE', emailEstudiante, setEmailEstudiante,
+                () => setEstudianteNoEncontrado(false), buscarEstudiante, buscandoEstudiante)}
+            </>
+          ) : (
+            <>
+              {encabezadoTipo('estudiante', 'Registrar')}
+              {cintaCorreo(componerCorreo(emailEstudiante))}
               <div className="form-field">
                 <label className="field-label">Apellidos</label>
-                <Input value={apellidosEstudiante} onChange={e => setApellidosEstudiante(e.target.value)} size="large" placeholder="Ej: PÉREZ GARCÍA" style={{ marginBottom: 10 }} />
+                <Input value={apellidosEstudiante} onChange={e => setApellidosEstudiante(e.target.value)} size="large" autoFocus placeholder="Ej: PÉREZ GARCÍA" style={{ marginBottom: 10 }} />
                 <label className="field-label">Nombres</label>
                 <Input value={nombresEstudiante} onChange={e => setNombresEstudiante(e.target.value)} size="large" placeholder="Ej: JUAN CARLOS" />
               </div>
@@ -390,6 +431,10 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
 
       {pasoManual === 'invitado' && (
         <div className="form-field">
+          {/* El invitado no se busca por correo (no tiene institucional): se
+              identifica por documento. El encabezado mantiene la coherencia
+              visual con los otros tipos. */}
+          {encabezadoTipo('invitado', 'Registrar')}
           <label className="field-label">Apellidos</label>
           <Input value={apellidosInvitado} onChange={e => setApellidosInvitado(e.target.value)} size="large" autoFocus placeholder="Ej: PÉREZ GARCÍA" style={{ marginBottom: 10 }} />
           <label className="field-label">Nombres</label>
@@ -415,6 +460,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
             placeholder={tipoDocInvitado === 'cedula' ? '10 dígitos' : 'Ej: AB123456'}
             size="large"
             style={{ marginBottom: 16 }}
+            onPressEnter={buscarOCrearInvitado}
           />
 
           <Button
