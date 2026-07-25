@@ -7,13 +7,11 @@ import {
   getUsuarios, actualizarUsuario, crearUsuario, reemplazarAsignacion,
   getUltimoEscaneoDesde, getUsuarioByRfid,
   cambiarRolUsuario, eliminarUsuario, getPapeleraUsuarios, restaurarUsuario, getCarreras,
-  getMateriasPorCarrera,
 } from '../../api/biblioteca'
-import { normalizarMaterias } from '../../utils/materias'
 import { escucharDatosActualizados } from '../../utils/refresco'
 import AsignacionAcademica from '../../components/AsignacionAcademica'
 import type { CarreraAsignada } from '../../components/AsignacionAcademica'
-import { calcularIniciales } from '../../utils/iniciales'
+import { inicialesDe } from '../../utils/iniciales'
 import { validarDocumento } from '../../utils/documento'
 
 const OPCIONES_CICLO = [1, 2, 3, 4].map(n => ({ value: n, label: `${n}° Ciclo` }))
@@ -55,7 +53,6 @@ function GestionPersonas({ tipoPersona }: Props) {
 
   const [personas, setPersonas] = useState<any[]>([])
   const [carrerasDisponibles, setCarrerasDisponibles] = useState<string[]>([])
-  const [materiasPorCarrera, setMateriasPorCarrera] = useState<Record<string, string[]>>({})
   const [cargando, setCargando] = useState(false)
   const [modalEditar, setModalEditar] = useState(false)
   const [modalCrear, setModalCrear] = useState(false)
@@ -85,7 +82,6 @@ function GestionPersonas({ tipoPersona }: Props) {
   const [filtroCarrera, setFiltroCarrera] = useState<string | undefined>()
   const [filtroCiclo, setFiltroCiclo] = useState<number | undefined>()
   const [filtroJornada, setFiltroJornada] = useState<string | undefined>()
-  const [filtroMateria, setFiltroMateria] = useState<string | undefined>()
 
   // Vinculación de llavero: puede estar activa desde el modal de EDITAR
   // o desde el de CREAR — se guarda cuál para escribir en el form correcto.
@@ -94,7 +90,6 @@ function GestionPersonas({ tipoPersona }: Props) {
 
   useEffect(() => {
     getCarreras().then((data: any[]) => setCarrerasDisponibles(data.map(c => c.nombre)))
-    getMateriasPorCarrera().then(setMateriasPorCarrera).catch(() => setMateriasPorCarrera({}))
   }, [])
 
   const abrirPapelera = () => {
@@ -150,16 +145,6 @@ function GestionPersonas({ tipoPersona }: Props) {
   useEffect(() => escucharDatosActualizados(cargarPersonas), [segmento])
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
-  // Materias asignadas a las personas cargadas: alimentan el FILTRO
-  // (solo tiene sentido filtrar por materias que alguien realmente tiene).
-  const materiasDisponibles = useMemo(() => {
-    const set = new Set<string>()
-    personas.forEach(p => p.carreras?.forEach((dc: any) =>
-      dc.ciclos?.forEach((c: any) => c.materias?.forEach((m: any) => set.add(m.nombre)))
-    ))
-    return [...set].sort()
-  }, [personas])
-
   const personasFiltradas = useMemo(() => {
     let resultado = personas
 
@@ -170,12 +155,12 @@ function GestionPersonas({ tipoPersona }: Props) {
 
     if (esInvitado) return resultado
 
-    if (!filtroCarrera && !filtroCiclo && !filtroJornada && !filtroMateria) return resultado
+    if (!filtroCarrera && !filtroCiclo && !filtroJornada) return resultado
 
     // Busca, para cada persona, si existe UNA combinación carrera+ciclo que
     // cumpla TODOS los filtros activos a la vez — así "Carrera=Software" y
-    // "Materia=Cálculo" no se mezclan si esa materia en realidad pertenece
-    // a otra carrera distinta que también tiene esa persona.
+    // "Ciclo=3" no se mezclan si ese ciclo en realidad pertenece a otra
+    // carrera distinta que también tiene esa persona.
     return resultado.filter(p => {
       const carreras = p.carreras ?? []
       return carreras.some((dc: any) => {
@@ -183,18 +168,16 @@ function GestionPersonas({ tipoPersona }: Props) {
         return (dc.ciclos ?? []).some((c: any) => {
           if (filtroCiclo && c.numero !== filtroCiclo) return false
           if (filtroJornada && c.jornada !== filtroJornada) return false
-          if (filtroMateria && !(c.materias ?? []).some((m: any) => m.nombre === filtroMateria)) return false
           return true
         })
       })
     })
-  }, [personas, filtroCarrera, filtroCiclo, filtroJornada, filtroMateria, esInvitado, busquedaTexto])
+  }, [personas, filtroCarrera, filtroCiclo, filtroJornada, esInvitado, busquedaTexto])
 
   const limpiarFiltros = () => {
     setFiltroCarrera(undefined)
     setFiltroCiclo(undefined)
     setFiltroJornada(undefined)
-    setFiltroMateria(undefined)
   }
 
   const cambiarSegmento = (val: Segmento) => {
@@ -220,7 +203,11 @@ function GestionPersonas({ tipoPersona }: Props) {
     setAsignacionEditar(construirAsignacion(persona))
     formEditar.setFieldsValue({
       rfid: persona.rfid,
-      nombre: persona.nombre,
+      // Si la persona es de antes de la separación, puede no tener apellidos/
+      // nombres por separado; en ese caso se muestra el nombre combinado en
+      // el campo Apellidos para que el bibliotecario lo reordene al editar.
+      apellidos: persona.apellidos ?? persona.nombre ?? '',
+      nombres: persona.nombres ?? '',
       iniciales: persona.iniciales,
       tipoDocumento: persona.tipoDocumento,
       numeroDocumento: persona.numeroDocumento,
@@ -274,10 +261,6 @@ function GestionPersonas({ tipoPersona }: Props) {
           message.warning(`Selecciona la jornada del ${ciclo.numero}° ciclo en ${carrera.nombre}`)
           return null
         }
-        if (normalizarMaterias(ciclo.materias).length === 0) {
-          message.warning(`Agrega al menos una materia en el ${ciclo.numero}° ciclo de ${carrera.nombre}`)
-          return null
-        }
       }
     }
     return asignacion.map(c => ({
@@ -285,7 +268,7 @@ function GestionPersonas({ tipoPersona }: Props) {
       ciclos: c.ciclos.map(ci => ({
         numero: ci.numero,
         jornada: ci.jornada,
-        materias: normalizarMaterias(ci.materias),
+        materias: [],
       })),
     }))
   }
@@ -300,14 +283,15 @@ function GestionPersonas({ tipoPersona }: Props) {
 
       await actualizarUsuario(editando.id, {
         rfid: valores.rfid,
-        nombre: valores.nombre,
-        iniciales: calcularIniciales(valores.nombre),
+        apellidos: valores.apellidos,
+        nombres: valores.nombres,
+        iniciales: inicialesDe(valores.apellidos, valores.nombres),
         ...(editarEsInvitado ? { tipoDocumento: valores.tipoDocumento, numeroDocumento: valores.numeroDocumento } : {}),
       })
 
       if (!editarEsInvitado && carreras) {
         // Una sola llamada atómica: el backend resuelve altas, bajas y
-        // modificaciones de carreras, ciclos y materias en una transacción.
+        // modificaciones de carreras y ciclos en una transacción.
         await reemplazarAsignacion(editando.id, carreras)
       }
 
@@ -332,8 +316,9 @@ function GestionPersonas({ tipoPersona }: Props) {
       if (!tipoFinalEsInvitado && !carreras) return
 
       await crearUsuario({
-        nombre: valores.nombre,
-        iniciales: calcularIniciales(valores.nombre),
+        apellidos: valores.apellidos,
+        nombres: valores.nombres,
+        iniciales: inicialesDe(valores.apellidos, valores.nombres),
         rfid: valores.rfid || undefined,
         email: valores.email || undefined,
         tipoPersona: tipoFinal,
@@ -449,7 +434,7 @@ function GestionPersonas({ tipoPersona }: Props) {
     },
   ]
 
-  const hayFiltrosActivos = filtroCarrera || filtroCiclo || filtroJornada || filtroMateria
+  const hayFiltrosActivos = filtroCarrera || filtroCiclo || filtroJornada
 
   return (
     <div className="reportes-page">
@@ -539,13 +524,6 @@ function GestionPersonas({ tipoPersona }: Props) {
             value={filtroJornada} onChange={setFiltroJornada}
             options={OPCIONES_JORNADA}
           />
-          <Select
-            placeholder="Materia" allowClear style={{ width: 200 }}
-            value={filtroMateria} onChange={setFiltroMateria}
-            options={materiasDisponibles.map(m => ({ value: m, label: m }))}
-            showSearch
-            optionFilterProp="label"
-          />
           {hayFiltrosActivos && (
             <Button size="small" onClick={limpiarFiltros}>Limpiar filtros</Button>
           )}
@@ -574,8 +552,11 @@ function GestionPersonas({ tipoPersona }: Props) {
         destroyOnClose
       >
         <Form form={formEditar} layout="vertical" style={{ marginTop: 20 }}>
-          <Form.Item name="nombre" label="Nombre completo" rules={[{ required: true }]}>
-            <Input />
+          <Form.Item name="apellidos" label="Apellidos" rules={[{ required: true, message: 'Ingresa los apellidos' }]}>
+            <Input placeholder="Ej: PÉREZ GARCÍA" />
+          </Form.Item>
+          <Form.Item name="nombres" label="Nombres">
+            <Input placeholder="Ej: JUAN CARLOS" />
           </Form.Item>
           <Form.Item
             label="UID del llavero RFID"
@@ -632,8 +613,8 @@ function GestionPersonas({ tipoPersona }: Props) {
               valor={asignacionEditar}
               onChange={setAsignacionEditar}
               carrerasDisponibles={carrerasDisponibles}
-              materiasPorCarrera={materiasPorCarrera}
-              titulo={tipoEditando === 'DOCENTE' ? 'Carreras en las que dicta' : 'Carreras que cursa'}
+              titulo={tipoEditando === 'DOCENTE' ? 'Carreras en las que dicta' : 'Carrera que cursa'}
+              carreraUnica={tipoEditando === 'ESTUDIANTE'}
             />
             <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 8 }}>
               Todo se aplica junto al presionar "Guardar cambios".
@@ -672,8 +653,11 @@ function GestionPersonas({ tipoPersona }: Props) {
 
           {tipoCrear && (
             <>
-              <Form.Item name="nombre" label="Nombre completo" rules={[{ required: true }]}>
-                <Input placeholder="Ej: Juan Pérez" />
+              <Form.Item name="apellidos" label="Apellidos" rules={[{ required: true, message: 'Ingresa los apellidos' }]}>
+                <Input placeholder="Ej: PÉREZ GARCÍA" />
+              </Form.Item>
+              <Form.Item name="nombres" label="Nombres">
+                <Input placeholder="Ej: JUAN CARLOS" />
               </Form.Item>
               <Form.Item
                 name="email"
@@ -738,8 +722,8 @@ function GestionPersonas({ tipoPersona }: Props) {
                     valor={asignacionCrear}
                     onChange={setAsignacionCrear}
                     carrerasDisponibles={carrerasDisponibles}
-                    materiasPorCarrera={materiasPorCarrera}
-                    titulo={tipoCrear === 'DOCENTE' ? 'Carreras en las que dicta' : 'Carreras que cursa'}
+                    titulo={tipoCrear === 'DOCENTE' ? 'Carreras en las que dicta' : 'Carrera que cursa'}
+                    carreraUnica={tipoCrear === 'ESTUDIANTE'}
                   />
                 </>
               )}
