@@ -136,7 +136,7 @@ function EmitirCertificado({ usuarioPrecargado }: Props) {
     try {
       imprimirCertificado({
         usuario: {
-          nombre: nombre.trim(),
+          nombre: nombre.replace(/\s+/g, ' ').trim().toUpperCase(),
           email: componerCorreo(email),
           tipoPersona,
           carreras: carrera ? [{ carrera: { nombre: carrera } }] : [],
@@ -179,28 +179,23 @@ function EmitirCertificado({ usuarioPrecargado }: Props) {
   return (
     <div>
       <div className="form-field">
-        <label className="field-label">Buscar estudiante por nombre o correo</label>
-        <AutoComplete
-          options={opcionesSugerencia}
-          onSearch={buscarSugerencias}
-          onSelect={elegirSugerencia}
-          style={{ width: '100%', marginBottom: 14 }}
-          size="large"
-          placeholder="Escribe el nombre o correo del estudiante"
-        />
-
-        <label className="field-label">O ingresa el correo institucional</label>
+        <label className="field-label">Correo institucional o nombre del estudiante</label>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Input
-            placeholder="nombre.apellido"
-            prefix={<MailOutlined style={{ color: '#9CA3AF' }} />}
-            suffix={<span style={{ color: '#94A3B8', fontSize: 13 }}>{DOMINIO}</span>}
+          <AutoComplete
+            options={opcionesSugerencia}
+            onSearch={texto => { buscarSugerencias(texto); setEmail(texto); limpiar() }}
+            onSelect={elegirSugerencia}
             value={email}
-            onChange={e => { setEmail(e.target.value); limpiar() }}
-            onPressEnter={buscar}
+            style={{ flex: 1 }}
             size="large"
-            autoFocus
-          />
+          >
+            <Input
+              prefix={<MailOutlined style={{ color: '#9CA3AF' }} />}
+              suffix={<span style={{ color: '#94A3B8', fontSize: 13 }}>{DOMINIO}</span>}
+              onPressEnter={buscar}
+              autoFocus
+            />
+          </AutoComplete>
           <Button
             type="primary"
             size="large"
@@ -213,7 +208,7 @@ function EmitirCertificado({ usuarioPrecargado }: Props) {
           </Button>
         </div>
         <p style={{ fontSize: 11, color: '#8FA5AE', marginTop: 6 }}>
-          Si el estudiante está registrado, el certificado refleja su historial real de préstamos.
+          Escribe para ver estudiantes ya registrados. Si el estudiante está registrado, el certificado refleja su historial real de préstamos.
         </p>
       </div>
 
@@ -235,8 +230,11 @@ function EmitirCertificado({ usuarioPrecargado }: Props) {
           </div>
 
           <div className="form-field">
-            <label className="field-label">Nombre completo</label>
-            <Input value={nombre} onChange={e => setNombre(e.target.value)} size="large" />
+            <label className="field-label">Apellidos y nombres</label>
+            <Input value={nombre} onChange={e => setNombre(e.target.value)} size="large" placeholder="APELLIDOS NOMBRES" />
+            <p style={{ fontSize: 11, color: '#8FA5AE', marginTop: 4 }}>
+              Escribe primero los apellidos y luego los nombres, como aparecerá en el certificado.
+            </p>
           </div>
           <div className="form-field">
             <label className="field-label">Tipo de persona</label>
