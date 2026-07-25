@@ -31,6 +31,11 @@ export const buscarPorEmail = (email: string) =>
 export const buscarPorDocumento = (numero: string) =>
   api.get(`/usuarios/documento/${encodeURIComponent(numero)}`).then(r => r.data)
 
+// Búsqueda parcial por nombre o correo para el autocompletado del registro.
+// tipoPersona opcional acota los resultados (ej. solo ESTUDIANTE para el certificado).
+export const buscarUsuarios = (q: string, tipoPersona?: string) =>
+  api.get('/usuarios/buscar', { params: { q, tipoPersona } }).then(r => r.data)
+
 export const getUsuarios = (tipoPersona?: string) =>
   api.get('/usuarios', { params: { tipoPersona } }).then(r => r.data)
 

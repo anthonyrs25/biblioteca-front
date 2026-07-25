@@ -22,6 +22,9 @@ function Login() {
       const data = await login(email, password)
       localStorage.setItem('biblioteca_token', data.access_token)
       localStorage.setItem('biblioteca_usuario', JSON.stringify(data.usuario))
+      // Avisa a ModoProvider (en esta misma pestaña) que ya hay usuario, para
+      // que el badge Bibliotecario/Administrador aparezca sin recargar.
+      window.dispatchEvent(new Event('usuario-cambiado'))
       message.success('Acceso concedido')
       navigate('/sistema')
     } catch {

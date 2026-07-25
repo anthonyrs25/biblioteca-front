@@ -1,18 +1,30 @@
-import { useState, useEffect } from 'react'
-import { Button, Input, Select, App } from 'antd'
+import { useState, useEffect, useRef } from 'react'
+import { Button, Input, Select, App, AutoComplete } from 'antd'
 import {
   IdcardOutlined, ReadOutlined, UserAddOutlined,
   ArrowLeftOutlined, MailOutlined,
 } from '@ant-design/icons'
-import { getCarreras, getMateriasPorCarrera, buscarPorEmail, buscarPorDocumento, crearUsuario } from '../api/biblioteca'
+import { getCarreras, buscarPorEmail, buscarPorDocumento, buscarUsuarios, crearUsuario } from '../api/biblioteca'
 import type { PasoSelector } from '../config/llaverosGenerales'
-import { normalizarMaterias } from '../utils/materias'
 import { calcularIniciales } from '../utils/iniciales'
 import AsignacionAcademica from './AsignacionAcademica'
 import type { CarreraAsignada } from './AsignacionAcademica'
 import { validarDocumento, soloDigitos } from '../utils/documento'
 
 type PasoManual = 'tipo' | PasoSelector
+
+// Dominio institucional: el bibliotecario solo escribe la parte de antes de la
+// arroba y el sistema completa el resto, para no teclear lo mismo cada vez.
+const DOMINIO = '@sudamericano.edu.ec'
+
+// Une la parte local con el dominio. Si el usuario ya escribió una arroba
+// (pegó el correo completo, o es de otro dominio), se respeta lo que puso.
+function componerCorreo(parteLocal: string): string {
+  const limpio = parteLocal.trim()
+  if (!limpio) return ''
+  if (limpio.includes('@')) return limpio
+  return limpio + DOMINIO
+}
 
 interface Props {
   // Paso en el que arranca: 'tipo' (menú) si no se indica.
@@ -29,7 +41,6 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
   const { message } = App.useApp()
   const [pasoManual, setPasoManual] = useState<PasoManual>(pasoInicial ?? 'tipo')
   const [carrerasDisponibles, setCarrerasDisponibles] = useState<string[]>([])
-  const [materiasPorCarrera, setMateriasPorCarrera] = useState<Record<string, string[]>>({})
 
   // ── Docente ──
   const [emailDocente, setEmailDocente] = useState('')
@@ -54,53 +65,59 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
   const [buscandoInvitado, setBuscandoInvitado] = useState(false)
   const [creandoInvitado, setCreandoInvitado] = useState(false)
 
+  // ── Autocompletado por nombre o correo (docente / estudiante) ──
+  // Guarda las coincidencias devueltas por el backend para poder recuperar
+  // el usuario completo cuando se elige una opción.
+  const [sugerencias, setSugerencias] = useState<any[]>([])
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
     getCarreras().then((data: any[]) => setCarrerasDisponibles(data.map(c => c.nombre)))
-    getMateriasPorCarrera().then(setMateriasPorCarrera).catch(() => setMateriasPorCarrera({}))
   }, [])
 
-  // Valida la asignación académica y la deja lista para enviar al backend:
-  // materias normalizadas y sin ciclos vacíos.
-  const prepararCarreras = (asignacion: CarreraAsignada[]): any[] | null => {
-    if (asignacion.length === 0) {
-      message.warning('Selecciona al menos una carrera')
-      return null
-    }
-    for (const carrera of asignacion) {
-      if (carrera.ciclos.length === 0) {
-        message.warning(`Agrega al menos un ciclo en ${carrera.nombre}`)
-        return null
+  // Busca coincidencias mientras se escribe, con un pequeño retardo para no
+  // disparar una petición por cada tecla. Filtra por tipoPersona para que el
+  // flujo de docente no sugiera estudiantes y viceversa.
+  const buscarSugerencias = (texto: string, tipoPersona: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (texto.trim().length < 2) { setSugerencias([]); return }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const resultados = await buscarUsuarios(texto.trim(), tipoPersona)
+        setSugerencias(resultados ?? [])
+      } catch {
+        setSugerencias([])
       }
-      for (const ciclo of carrera.ciclos) {
-        if (!ciclo.jornada) {
-          message.warning(`Selecciona la jornada del ${ciclo.numero}° ciclo en ${carrera.nombre}`)
-          return null
-        }
-        if (normalizarMaterias(ciclo.materias).length === 0) {
-          message.warning(`Agrega al menos una materia en el ${ciclo.numero}° ciclo de ${carrera.nombre}`)
-          return null
-        }
-      }
-    }
-    return asignacion.map(c => ({
-      nombre: c.nombre,
-      ciclos: c.ciclos.map(ci => ({
-        numero: ci.numero,
-        jornada: ci.jornada,
-        materias: normalizarMaterias(ci.materias),
-      })),
-    }))
+    }, 300)
+  }
+
+  // Opciones para el AutoComplete: muestra nombre y correo en cada fila.
+  const opcionesSugerencia = sugerencias.map(u => ({
+    value: String(u.id),
+    label: (
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <span style={{ fontWeight: 600 }}>{u.nombre}</span>
+        {u.email && <span style={{ fontSize: 12, color: '#94A3B8' }}>{u.email}</span>}
+      </div>
+    ),
+  }))
+
+  // Al elegir una coincidencia, se entra directo con ese usuario ya registrado.
+  const elegirSugerencia = (id: string) => {
+    const usuario = sugerencias.find(u => String(u.id) === id)
+    if (usuario) onSeleccionar(usuario)
   }
 
   // ── Flujo Docente ──
   // El correo institucional es el identificador único, así no se crean
   // docentes duplicados por diferencias de escritura del nombre.
   const buscarDocente = async () => {
-    if (!emailDocente.trim()) { message.warning('Ingresa el correo institucional'); return }
+    const correo = componerCorreo(emailDocente)
+    if (!correo) { message.warning('Ingresa el correo o el nombre'); return }
     setBuscandoDocente(true)
     setDocenteNoEncontrado(false)
     try {
-      const encontrado = await buscarPorEmail(emailDocente.trim())
+      const encontrado = await buscarPorEmail(correo)
       if (encontrado) {
         onSeleccionar(encontrado)
       } else {
@@ -115,24 +132,25 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
 
   const crearYRegistrarDocente = async () => {
     if (!nombreDocente.trim()) { message.warning('Ingresa el nombre'); return }
-    const carreras = prepararCarreras(asignacionDocente)
-    if (!carreras) return
+    if (asignacionDocente.length === 0) { message.warning('Selecciona al menos una carrera'); return }
+    for (const carrera of asignacionDocente) {
+      if (carrera.ciclos.length === 0) { message.warning(`Agrega al menos un ciclo en ${carrera.nombre}`); return }
+      for (const ciclo of carrera.ciclos) {
+        if (!ciclo.jornada) { message.warning(`Selecciona la jornada del ${ciclo.numero}° ciclo en ${carrera.nombre}`); return }
+      }
+    }
 
     setCreandoDocente(true)
     try {
       await crearUsuario({
         nombre: nombreDocente.trim(),
-        // Las iniciales son solo el avatar visual: se calculan del nombre
-        // en vez de pedírselas al bibliotecario en cada registro.
         iniciales: calcularIniciales(nombreDocente),
-        email: emailDocente.trim(),
+        email: componerCorreo(emailDocente),
         rol: 'usuario',
         tipoPersona: 'DOCENTE',
-        carreras,
+        carreras: asignacionDocente,
       })
-      // Se vuelve a pedir con las relaciones completas (carreras/ciclos)
-      // para que el panel de uso/préstamo funcione de inmediato.
-      const creado = await buscarPorEmail(emailDocente.trim())
+      const creado = await buscarPorEmail(componerCorreo(emailDocente))
       onSeleccionar(creado)
     } catch {
       message.error('Error al registrar al docente')
@@ -143,11 +161,12 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
 
   // ── Flujo Estudiante ──
   const buscarEstudiante = async () => {
-    if (!emailEstudiante.trim()) { message.warning('Ingresa el correo institucional'); return }
+    const correo = componerCorreo(emailEstudiante)
+    if (!correo) { message.warning('Ingresa el correo o el nombre'); return }
     setBuscandoEstudiante(true)
     setEstudianteNoEncontrado(false)
     try {
-      const encontrado = await buscarPorEmail(emailEstudiante.trim())
+      const encontrado = await buscarPorEmail(correo)
       if (encontrado) {
         onSeleccionar(encontrado)
       } else {
@@ -162,20 +181,22 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
 
   const crearYRegistrarEstudiante = async () => {
     if (!nombreEstudiante.trim()) { message.warning('Ingresa el nombre'); return }
-    const carreras = prepararCarreras(asignacionEstudiante)
-    if (!carreras) return
+    const carrera = asignacionEstudiante[0]
+    if (!carrera) { message.warning('Selecciona la carrera'); return }
+    const ciclo = carrera.ciclos[0]
+    if (!ciclo?.jornada) { message.warning('Selecciona la jornada del ciclo'); return }
 
     setCreandoEstudiante(true)
     try {
       await crearUsuario({
         nombre: nombreEstudiante.trim(),
         iniciales: calcularIniciales(nombreEstudiante),
-        email: emailEstudiante.trim(),
+        email: componerCorreo(emailEstudiante),
         rol: 'usuario',
         tipoPersona: 'ESTUDIANTE',
-        carreras,
+        carreras: asignacionEstudiante,
       })
-      const creado = await buscarPorEmail(emailEstudiante.trim())
+      const creado = await buscarPorEmail(componerCorreo(emailEstudiante))
       onSeleccionar(creado)
     } catch {
       message.error('Error al registrar al estudiante')
@@ -224,6 +245,44 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
     }
   }
 
+  // Campo de correo con dominio fijo a la derecha: el bibliotecario escribe
+  // solo la parte local. Encima, un buscador por nombre o correo que muestra
+  // coincidencias ya registradas mientras se escribe.
+  const bloqueBusqueda = (
+    tipoPersona: 'DOCENTE' | 'ESTUDIANTE',
+    emailValor: string,
+    setEmail: (v: string) => void,
+    onNoEncontrado: () => void,
+    buscar: () => void,
+    buscando: boolean,
+  ) => (
+    <>
+      <label className="field-label">Buscar por nombre o correo</label>
+      <AutoComplete
+        options={opcionesSugerencia}
+        onSearch={texto => buscarSugerencias(texto, tipoPersona)}
+        onSelect={elegirSugerencia}
+        style={{ width: '100%', marginBottom: 12 }}
+        size="large"
+        placeholder="Escribe el nombre o correo de alguien ya registrado"
+      />
+
+      <label className="field-label">O ingresa el correo para registrar</label>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <Input
+          placeholder="nombre.apellido"
+          prefix={<MailOutlined style={{ color: '#9CA3AF' }} />}
+          suffix={<span style={{ color: '#94A3B8', fontSize: 13 }}>{DOMINIO}</span>}
+          value={emailValor}
+          onChange={e => { setEmail(e.target.value); onNoEncontrado() }}
+          size="large"
+          onPressEnter={buscar}
+        />
+        <Button size="large" onClick={buscar} loading={buscando}>Buscar</Button>
+      </div>
+    </>
+  )
+
   return (
     <>
       {pasoManual !== 'tipo' && (
@@ -238,7 +297,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
             <IdcardOutlined style={{ fontSize: 22, color: 'var(--marca)' }} />
             <span>
               <span className="opcion-titulo">Docente</span>
-              <span className="opcion-desc">Buscar por correo o registrar uno nuevo</span>
+              <span className="opcion-desc">Buscar por nombre o correo, o registrar uno nuevo</span>
             </span>
           </button>
           <button className="opcion-btn" onClick={() => setPasoManual('estudiante')}>
@@ -260,19 +319,8 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
 
       {pasoManual === 'docente' && (
         <div className="form-field">
-          <label className="field-label">Correo institucional</label>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <Input
-              placeholder="nombre@sudamericano.edu.ec"
-              prefix={<MailOutlined style={{ color: '#9CA3AF' }} />}
-              value={emailDocente}
-              onChange={e => { setEmailDocente(e.target.value); setDocenteNoEncontrado(false) }}
-              size="large"
-              autoFocus
-              onPressEnter={buscarDocente}
-            />
-            <Button size="large" onClick={buscarDocente} loading={buscandoDocente}>Buscar</Button>
-          </div>
+          {bloqueBusqueda('DOCENTE', emailDocente, setEmailDocente,
+            () => setDocenteNoEncontrado(false), buscarDocente, buscandoDocente)}
 
           {docenteNoEncontrado && (
             <>
@@ -288,7 +336,6 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
                 valor={asignacionDocente}
                 onChange={setAsignacionDocente}
                 carrerasDisponibles={carrerasDisponibles}
-                materiasPorCarrera={materiasPorCarrera}
                 titulo="Carreras en las que dicta"
               />
 
@@ -302,19 +349,8 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
 
       {pasoManual === 'estudiante' && (
         <div className="form-field">
-          <label className="field-label">Correo institucional</label>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <Input
-              placeholder="nombre@sudamericano.edu.ec"
-              prefix={<MailOutlined style={{ color: '#9CA3AF' }} />}
-              value={emailEstudiante}
-              onChange={e => { setEmailEstudiante(e.target.value); setEstudianteNoEncontrado(false) }}
-              size="large"
-              autoFocus
-              onPressEnter={buscarEstudiante}
-            />
-            <Button size="large" onClick={buscarEstudiante} loading={buscandoEstudiante}>Buscar</Button>
-          </div>
+          {bloqueBusqueda('ESTUDIANTE', emailEstudiante, setEmailEstudiante,
+            () => setEstudianteNoEncontrado(false), buscarEstudiante, buscandoEstudiante)}
 
           {estudianteNoEncontrado && (
             <>
@@ -330,8 +366,8 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
                 valor={asignacionEstudiante}
                 onChange={setAsignacionEstudiante}
                 carrerasDisponibles={carrerasDisponibles}
-                materiasPorCarrera={materiasPorCarrera}
-                titulo="Carreras que cursa"
+                titulo="Carrera que cursa"
+                carreraUnica
               />
 
               <Button className="btn-confirmar" block size="large" onClick={crearYRegistrarEstudiante} loading={creandoEstudiante} style={{ marginTop: 8 }}>
