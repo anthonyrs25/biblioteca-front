@@ -6,7 +6,7 @@ import {
 } from '@ant-design/icons'
 import { getCarreras, buscarPorEmail, buscarPorDocumento, buscarUsuarios, crearUsuario } from '../api/biblioteca'
 import type { PasoSelector } from '../config/llaverosGenerales'
-import { calcularIniciales } from '../utils/iniciales'
+import { inicialesDe } from '../utils/iniciales'
 import AsignacionAcademica from './AsignacionAcademica'
 import type { CarreraAsignada } from './AsignacionAcademica'
 import { validarDocumento, soloDigitos } from '../utils/documento'
@@ -46,7 +46,8 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
   const [emailDocente, setEmailDocente] = useState('')
   const [buscandoDocente, setBuscandoDocente] = useState(false)
   const [docenteNoEncontrado, setDocenteNoEncontrado] = useState(false)
-  const [nombreDocente, setNombreDocente] = useState('')
+  const [apellidosDocente, setApellidosDocente] = useState('')
+  const [nombresDocente, setNombresDocente] = useState('')
   const [asignacionDocente, setAsignacionDocente] = useState<CarreraAsignada[]>([])
   const [creandoDocente, setCreandoDocente] = useState(false)
 
@@ -54,12 +55,14 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
   const [emailEstudiante, setEmailEstudiante] = useState('')
   const [buscandoEstudiante, setBuscandoEstudiante] = useState(false)
   const [estudianteNoEncontrado, setEstudianteNoEncontrado] = useState(false)
-  const [nombreEstudiante, setNombreEstudiante] = useState('')
+  const [apellidosEstudiante, setApellidosEstudiante] = useState('')
+  const [nombresEstudiante, setNombresEstudiante] = useState('')
   const [asignacionEstudiante, setAsignacionEstudiante] = useState<CarreraAsignada[]>([])
   const [creandoEstudiante, setCreandoEstudiante] = useState(false)
 
   // ── Invitado ──
-  const [nombreInvitado, setNombreInvitado] = useState('')
+  const [apellidosInvitado, setApellidosInvitado] = useState('')
+  const [nombresInvitado, setNombresInvitado] = useState('')
   const [tipoDocInvitado, setTipoDocInvitado] = useState<string>('cedula')
   const [numeroDocInvitado, setNumeroDocInvitado] = useState('')
   const [buscandoInvitado, setBuscandoInvitado] = useState(false)
@@ -131,7 +134,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
   }
 
   const crearYRegistrarDocente = async () => {
-    if (!nombreDocente.trim()) { message.warning('Ingresa el nombre'); return }
+    if (!apellidosDocente.trim() && !nombresDocente.trim()) { message.warning('Ingresa apellidos y nombres'); return }
     if (asignacionDocente.length === 0) { message.warning('Selecciona al menos una carrera'); return }
     for (const carrera of asignacionDocente) {
       if (carrera.ciclos.length === 0) { message.warning(`Agrega al menos un ciclo en ${carrera.nombre}`); return }
@@ -143,8 +146,9 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
     setCreandoDocente(true)
     try {
       await crearUsuario({
-        nombre: nombreDocente.trim(),
-        iniciales: calcularIniciales(nombreDocente),
+        apellidos: apellidosDocente.trim(),
+        nombres: nombresDocente.trim(),
+        iniciales: inicialesDe(apellidosDocente, nombresDocente),
         email: componerCorreo(emailDocente),
         rol: 'usuario',
         tipoPersona: 'DOCENTE',
@@ -180,7 +184,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
   }
 
   const crearYRegistrarEstudiante = async () => {
-    if (!nombreEstudiante.trim()) { message.warning('Ingresa el nombre'); return }
+    if (!apellidosEstudiante.trim() && !nombresEstudiante.trim()) { message.warning('Ingresa apellidos y nombres'); return }
     const carrera = asignacionEstudiante[0]
     if (!carrera) { message.warning('Selecciona la carrera'); return }
     const ciclo = carrera.ciclos[0]
@@ -189,8 +193,9 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
     setCreandoEstudiante(true)
     try {
       await crearUsuario({
-        nombre: nombreEstudiante.trim(),
-        iniciales: calcularIniciales(nombreEstudiante),
+        apellidos: apellidosEstudiante.trim(),
+        nombres: nombresEstudiante.trim(),
+        iniciales: inicialesDe(apellidosEstudiante, nombresEstudiante),
         email: componerCorreo(emailEstudiante),
         rol: 'usuario',
         tipoPersona: 'ESTUDIANTE',
@@ -207,7 +212,7 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
 
   // ── Flujo Invitado ──
   const buscarOCrearInvitado = async () => {
-    if (!nombreInvitado.trim()) { message.warning('Ingresa el nombre'); return }
+    if (!apellidosInvitado.trim() && !nombresInvitado.trim()) { message.warning('Ingresa apellidos y nombres'); return }
     if (!numeroDocInvitado.trim()) { message.warning('Ingresa el número de documento'); return }
 
     const check = validarDocumento(tipoDocInvitado, numeroDocInvitado)
@@ -229,8 +234,9 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
     setCreandoInvitado(true)
     try {
       await crearUsuario({
-        nombre: nombreInvitado.trim(),
-        iniciales: calcularIniciales(nombreInvitado),
+        apellidos: apellidosInvitado.trim(),
+        nombres: nombresInvitado.trim(),
+        iniciales: inicialesDe(apellidosInvitado, nombresInvitado),
         tipoDocumento: tipoDocInvitado,
         numeroDocumento: numeroDocInvitado.trim(),
         rol: 'usuario',
@@ -328,8 +334,10 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
                 No encontramos este correo — completa los datos para registrarlo por primera vez.
               </p>
               <div className="form-field">
-                <label className="field-label">Nombre completo</label>
-                <Input value={nombreDocente} onChange={e => setNombreDocente(e.target.value)} size="large" />
+                <label className="field-label">Apellidos</label>
+                <Input value={apellidosDocente} onChange={e => setApellidosDocente(e.target.value)} size="large" placeholder="Ej: PÉREZ GARCÍA" style={{ marginBottom: 10 }} />
+                <label className="field-label">Nombres</label>
+                <Input value={nombresDocente} onChange={e => setNombresDocente(e.target.value)} size="large" placeholder="Ej: JUAN CARLOS" />
               </div>
 
               <AsignacionAcademica
@@ -358,8 +366,10 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
                 No encontramos este correo — completa los datos para registrarlo por primera vez.
               </p>
               <div className="form-field">
-                <label className="field-label">Nombre completo</label>
-                <Input value={nombreEstudiante} onChange={e => setNombreEstudiante(e.target.value)} size="large" />
+                <label className="field-label">Apellidos</label>
+                <Input value={apellidosEstudiante} onChange={e => setApellidosEstudiante(e.target.value)} size="large" placeholder="Ej: PÉREZ GARCÍA" style={{ marginBottom: 10 }} />
+                <label className="field-label">Nombres</label>
+                <Input value={nombresEstudiante} onChange={e => setNombresEstudiante(e.target.value)} size="large" placeholder="Ej: JUAN CARLOS" />
               </div>
 
               <AsignacionAcademica
@@ -380,8 +390,10 @@ function RegistroManual({ pasoInicial, onSeleccionar }: Props) {
 
       {pasoManual === 'invitado' && (
         <div className="form-field">
-          <label className="field-label">Nombre completo</label>
-          <Input value={nombreInvitado} onChange={e => setNombreInvitado(e.target.value)} size="large" autoFocus style={{ marginBottom: 12 }} />
+          <label className="field-label">Apellidos</label>
+          <Input value={apellidosInvitado} onChange={e => setApellidosInvitado(e.target.value)} size="large" autoFocus placeholder="Ej: PÉREZ GARCÍA" style={{ marginBottom: 10 }} />
+          <label className="field-label">Nombres</label>
+          <Input value={nombresInvitado} onChange={e => setNombresInvitado(e.target.value)} size="large" placeholder="Ej: JUAN CARLOS" style={{ marginBottom: 12 }} />
 
           <label className="field-label">Tipo de documento</label>
           <Select

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeftOutlined, BookOutlined, TeamOutlined, ReadOutlined, UserAddOutlined, IdcardOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, BookOutlined, TeamOutlined, ReadOutlined, UserAddOutlined, IdcardOutlined, AppstoreOutlined } from '@ant-design/icons'
 import { useModo } from '../../context/ModoContext'
 
 function Gestion() {
@@ -30,14 +30,14 @@ function Gestion() {
             <TeamOutlined style={{ fontSize: 26, color: '#0ea5e9' }} />
             <span>
               <span className="opcion-titulo">Docentes</span>
-              <span className="opcion-desc">Carreras, ciclos, materias y llavero RFID</span>
+              <span className="opcion-desc">Carreras, ciclos, jornadas y llavero RFID</span>
             </span>
           </button>
           <button className="opcion-btn" onClick={() => navigate('/sistema/gestion/estudiantes')}>
             <ReadOutlined style={{ fontSize: 26, color: '#7C3AED' }} />
             <span>
               <span className="opcion-titulo">Estudiantes</span>
-              <span className="opcion-desc">Carreras, ciclos, materias y llavero RFID</span>
+              <span className="opcion-desc">Carrera, ciclo, jornada y llavero RFID</span>
             </span>
           </button>
           <button className="opcion-btn" onClick={() => navigate('/sistema/gestion/invitados')}>
@@ -53,6 +53,15 @@ function Gestion() {
               <span>
                 <span className="opcion-titulo">Cuentas del sistema</span>
                 <span className="opcion-desc">Crear cuentas nuevas de bibliotecario o administrador</span>
+              </span>
+            </button>
+          )}
+          {modoAdminActivo && (
+            <button className="opcion-btn" onClick={() => navigate('/sistema/gestion/actividades')}>
+              <AppstoreOutlined style={{ fontSize: 26, color: '#00796B' }} />
+              <span>
+                <span className="opcion-titulo">Actividades de biblioteca</span>
+                <span className="opcion-desc">Editar las opciones que aparecen al registrar un uso</span>
               </span>
             </button>
           )}

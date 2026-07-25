@@ -14,6 +14,7 @@ import Gestion from './pages/sistema/Gestion'
 import GestionLibros from './pages/sistema/GestionLibros'
 import GestionPersonas from './pages/sistema/GestionPersonas'
 import GestionStaff from './pages/sistema/GestionStaff'
+import GestionActividades from './pages/sistema/GestionActividades'
 import ProtectedRoute from './components/ProtectedRoute'
 import RegistroManual from './components/RegistroManual'
 import { ModoProvider } from './context/ModoContext'
@@ -170,22 +171,26 @@ function DocentePanel({ docente, onCerrar, onIr }: {
           </button>
         )}
 
-        {/* Consultas sobre esta persona, separadas de las acciones de registro */}
+        {/* Consultas sobre esta persona, separadas de las acciones de registro.
+            El certificado es exclusivo de estudiantes: para docentes e invitados
+            no se muestra. */}
         <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-          <button
-            className="opcion-btn"
-            onClick={emitirCertificado}
-            disabled={generando}
-            style={{ flex: 1, borderColor: '#9FDEDC', background: '#E6F7F6' }}
-          >
-            <span style={{ fontSize: 20 }}>📄</span>
-            <span>
-              <span className="opcion-titulo">
-                {generando ? 'Generando...' : 'Certificado'}
+          {docente.tipoPersona === 'ESTUDIANTE' && (
+            <button
+              className="opcion-btn"
+              onClick={emitirCertificado}
+              disabled={generando}
+              style={{ flex: 1, borderColor: '#9FDEDC', background: '#E6F7F6' }}
+            >
+              <span style={{ fontSize: 20 }}>📄</span>
+              <span>
+                <span className="opcion-titulo">
+                  {generando ? 'Generando...' : 'Certificado'}
+                </span>
+                <span className="opcion-desc">De no adeudar libros</span>
               </span>
-              <span className="opcion-desc">De no adeudar libros</span>
-            </span>
-          </button>
+            </button>
+          )}
           <button
             className="opcion-btn"
             onClick={verReportes}
@@ -353,6 +358,7 @@ function App() {
                       <Route path="gestion/estudiantes" element={<GestionPersonas tipoPersona="ESTUDIANTE" />} />
                       <Route path="gestion/invitados" element={<GestionPersonas tipoPersona="INVITADO" />} />
                       <Route path="gestion/staff" element={<GestionStaff />} />
+                      <Route path="gestion/actividades" element={<GestionActividades />} />
                     </Routes>
                   </>
                 </ProtectedRoute>

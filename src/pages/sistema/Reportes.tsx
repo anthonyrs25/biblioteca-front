@@ -349,6 +349,17 @@ function Reportes() {
   // Usuarios del desplegable: si hay un tipo elegido, solo los de ese tipo
   const usuariosDelSelector = usuarios.filter(u => !tipoFiltro || u.tipoPersona === tipoFiltro)
 
+  // Punto 3: si hay un usuario elegido en el filtro Y es estudiante, el botón
+  // Certificado lo emite directo para esa persona. Si no hay nadie elegido (o
+  // el elegido no es estudiante), el modal abre en modo búsqueda como siempre.
+  // El certificado es exclusivo de estudiantes, por eso se exige ESTUDIANTE.
+  const estudianteFiltradoParaCertificado = usuarioFiltro
+    ? (() => {
+        const u = usuarios.find(x => x.id === usuarioFiltro)
+        return u && u.tipoPersona === 'ESTUDIANTE' ? { id: u.id, nombre: u.nombre } : null
+      })()
+    : null
+
   // Acorta un texto para que quepa en el eje de un gráfico
   const corto = (t: string, n = 22) => t && t.length > n ? t.slice(0, n) + '…' : t
 
@@ -619,7 +630,9 @@ function Reportes() {
             size="large"
             onClick={() => setModalCertificado(true)}
           >
-            Certificado
+            {estudianteFiltradoParaCertificado
+              ? `Certificado de ${estudianteFiltradoParaCertificado.nombre}`
+              : 'Certificado'}
           </Button>
           <Button
             className="btn-exportar"
@@ -1110,7 +1123,7 @@ function Reportes() {
         centered
         width={520}
       >
-        <EmitirCertificado />
+        <EmitirCertificado usuarioPrecargado={estudianteFiltradoParaCertificado} />
       </Modal>
     </div>
   )
