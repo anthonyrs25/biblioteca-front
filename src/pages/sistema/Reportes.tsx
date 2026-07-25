@@ -155,7 +155,6 @@ function Reportes() {
   const [tipoUsuarioResumen, setTipoUsuarioResumen] = useState<string | undefined>()
   const [tipoUsuarioAnalitica, setTipoUsuarioAnalitica] = useState<string | undefined>()
   const [carreraAnalitica, setCarreraAnalitica] = useState<string | undefined>()
-  const [materiaAnalitica, setMateriaAnalitica] = useState<string | undefined>()
   const [carreraResumen, setCarreraResumen] = useState<string | undefined>()
   const [materiaResumen, setMateriaResumen] = useState<string | undefined>()
   const [materiasDisponibles, setMateriasDisponibles] = useState<string[]>([])
@@ -335,7 +334,7 @@ function Reportes() {
       getTotalVisitasPublicas(periodoAnalitica),
       getLibrosMasBuscados(periodoAnalitica),
       getCarrerasMasClickeadas(periodoAnalitica),
-      getRankingVisitasUsuarios(periodoAnalitica, tipoUsuarioAnalitica, carreraAnalitica, materiaAnalitica),
+      getRankingVisitasUsuarios(periodoAnalitica, tipoUsuarioAnalitica, carreraAnalitica, undefined),
       getRankingPrestamosLibros(periodoAnalitica),
       getRankingPrestamosUsuarios(periodoAnalitica, tipoUsuarioAnalitica),
     ]).then(([visitas, buscados, carreras, visitasUsuarios, librosPrestados, prestamosUsuarios]) => {
@@ -346,7 +345,7 @@ function Reportes() {
       setRankingLibros(librosPrestados)
       setRankingPrestamosUsuarios(prestamosUsuarios)
     }).finally(() => setCargandoAnalitica(false))
-  }, [periodoAnalitica, tipoUsuarioAnalitica, carreraAnalitica, materiaAnalitica])
+  }, [periodoAnalitica, tipoUsuarioAnalitica, carreraAnalitica])
 
   const maxCarrera = stats?.porCarrera?.length > 0
     ? Math.max(...stats.porCarrera.map((c: any) => c.visitas))
