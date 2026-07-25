@@ -10,9 +10,9 @@ interface Props {
 }
 
 const jornadas = [
-  { value: 'matutino', label: '🌅 Matutino' },
-  { value: 'vespertino', label: '🌇 Vespertino' },
-  { value: 'nocturno', label: '🌙 Nocturno' },
+  { value: 'matutino', label: 'Matutino' },
+  { value: 'vespertino', label: 'Vespertino' },
+  { value: 'nocturno', label: 'Nocturno' },
 ]
 
 // Grupo de botones de selección única: 1 clic para elegir
@@ -41,11 +41,9 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
   const [actividadesElegidas, setActividadesElegidas] = useState<string[]>([])
   const [nuevaActividad, setNuevaActividad] = useState('')
   const [agregandoActividad, setAgregandoActividad] = useState(false)
-  const [detalle, setDetalle] = useState('')
   const [carreraSeleccionada, setCarreraSeleccionada] = useState<string | undefined>()
   const [cicloSeleccionado, setCicloSeleccionado] = useState<number | undefined>()
   const [jornadaSeleccionada, setJornadaSeleccionada] = useState<string | undefined>()
-  const [materiaSeleccionada, setMateriaSeleccionada] = useState<string | undefined>()
   const [confirmado, setConfirmado] = useState(false)
   const [guardando, setGuardando] = useState(false)
 
@@ -60,7 +58,6 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
   const carreraActual = carrerasReales.find((c: any) => c.nombre === carreraSeleccionada)
   const opcionesCiclo = carreraActual?.ciclos.map((c: any) => ({ value: c.numero, label: `${c.numero}° Ciclo` })) ?? []
   const cicloActual = carreraActual?.ciclos.find((c: any) => c.numero === cicloSeleccionado)
-  const opcionesMateria = cicloActual?.materias.map((m: any) => ({ value: m.nombre, label: m.nombre })) ?? []
   const jornadaHabitual: string | undefined = cicloActual?.jornada
 
   // Auto-selección: si solo hay una opción posible, se precarga sola — el
@@ -82,12 +79,6 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
       setJornadaSeleccionada(jornadaHabitual)
     }
   }, [cicloSeleccionado, jornadaHabitual])
-
-  useEffect(() => {
-    if (opcionesMateria.length === 1 && cicloSeleccionado) {
-      setMateriaSeleccionada(opcionesMateria[0].value)
-    }
-  }, [cicloSeleccionado])
 
   if (!docente) return null
 
@@ -125,17 +116,14 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
     setCarreraSeleccionada(val)
     setCicloSeleccionado(undefined)
     setJornadaSeleccionada(undefined)
-    setMateriaSeleccionada(undefined)
   }
 
   const handleCicloChange = (val: number) => {
     setCicloSeleccionado(val)
     setJornadaSeleccionada(undefined)
-    setMateriaSeleccionada(undefined)
   }
 
   const esInvitado = docente?.tipoPersona === 'INVITADO'
-  const esDocenteOEstudiante = !esInvitado
 
   const handleConfirmar = async () => {
     if (actividadesElegidas.length === 0) { message.warning('Selecciona al menos una actividad'); return }
@@ -143,7 +131,6 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
       if (!carreraSeleccionada) { message.warning('Selecciona una carrera'); return }
       if (!cicloSeleccionado) { message.warning('Selecciona el ciclo'); return }
       if (!jornadaSeleccionada) { message.warning('Selecciona la jornada'); return }
-      if (!materiaSeleccionada) { message.warning('Selecciona la materia'); return }
     }
 
     setGuardando(true)
@@ -155,11 +142,9 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
           tipo: 'uso',
           usuarioId: docente.id,
           actividad,
-          detalle: detalle || undefined,
           carrera: esInvitado ? undefined : carreraSeleccionada,
           ciclo: esInvitado ? undefined : cicloSeleccionado,
           jornada: esInvitado ? undefined : jornadaSeleccionada,
-          materia: esInvitado ? undefined : materiaSeleccionada,
         })
       }
       setConfirmado(true)
@@ -212,7 +197,7 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
                 style={elegida ? { background: '#00796B', borderColor: '#00796B' } : {}}
                 size="large"
               >
-                {a.icono ? `${a.icono} ` : ''}{a.nombre}
+                {a.nombre}
               </Button>
             )
           })}
@@ -249,12 +234,6 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
         </div>
       </div>
 
-      <div className="form-field">
-        <label className="field-label">Detalle <span style={{ color: '#94A3B8', fontWeight: 400 }}>(opcional)</span></label>
-        <Input placeholder="Descripción breve..." value={detalle}
-          onChange={e => setDetalle(e.target.value)} size="large" maxLength={120} />
-      </div>
-
       {opcionesCarrera.length > 1 && (
         <div className="form-field">
           <label className="field-label">Carrera</label>
@@ -273,20 +252,7 @@ function UsoBiblioteca({ docente, onTerminar, enModal }: Props) {
         <div className="form-field">
           <label className="field-label">Jornada</label>
           <ChipGroup opciones={jornadas} valor={jornadaSeleccionada}
-            onChange={val => { setJornadaSeleccionada(val); setMateriaSeleccionada(opcionesMateria.length === 1 ? opcionesMateria[0].value : undefined) }} />
-        </div>
-      )}
-
-      {esDocenteOEstudiante && jornadaSeleccionada && opcionesMateria.length > 1 && (
-        <div className="form-field">
-          <label className="field-label">Materia</label>
-          <ChipGroup opciones={opcionesMateria} valor={materiaSeleccionada} onChange={setMateriaSeleccionada} />
-        </div>
-      )}
-
-      {esDocenteOEstudiante && jornadaSeleccionada && opcionesMateria.length === 1 && (
-        <div style={{ fontSize: 12, color: '#94A3B8', marginTop: -12, marginBottom: 18 }}>
-          Materia: <strong style={{ color: '#00796B' }}>{opcionesMateria[0].label}</strong> (única para este ciclo — precargada)
+            onChange={val => setJornadaSeleccionada(val)} />
         </div>
       )}
 

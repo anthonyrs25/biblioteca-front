@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Table, Button, Modal, Form, Input, InputNumber, App, Popconfirm, Tag, Select } from 'antd'
-import { ArrowLeftOutlined, PlusOutlined, EditOutlined, DeleteOutlined, BookOutlined, UploadOutlined, SearchOutlined, FileExcelOutlined, DownloadOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, PlusOutlined, EditOutlined, DeleteOutlined, BookOutlined, UploadOutlined, SearchOutlined, FileExcelOutlined, DownloadOutlined, CopyOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
-import { getLibros, crearLibro, actualizarLibro, eliminarLibro, buscarLibros, getProgramas, getCategorias, importarLoteLibros, exportarTodosLibros, getPapeleraLibros, restaurarLibro } from '../../api/biblioteca'
+import { getLibros, crearLibro, actualizarLibro, eliminarLibro, buscarLibros, getProgramas, getCategorias, importarLoteLibros, exportarTodosLibros, getPapeleraLibros, restaurarLibro, getLibrosDuplicados } from '../../api/biblioteca'
 import { useModo } from '../../context/ModoContext'
 import { nombreCortoPrograma } from '../../utils/carreras'
 
@@ -95,6 +95,19 @@ function GestionLibros() {
   const [modalPapelera, setModalPapelera] = useState(false)
   const [papelera, setPapelera] = useState<any[]>([])
   const [cargandoPapelera, setCargandoPapelera] = useState(false)
+
+  const [modalDuplicados, setModalDuplicados] = useState(false)
+  const [duplicados, setDuplicados] = useState<any[]>([])
+  const [cargandoDuplicados, setCargandoDuplicados] = useState(false)
+
+  const abrirDuplicados = () => {
+    setModalDuplicados(true)
+    setCargandoDuplicados(true)
+    getLibrosDuplicados()
+      .then(setDuplicados)
+      .catch(() => message.error('No se pudieron cargar los duplicados'))
+      .finally(() => setCargandoDuplicados(false))
+  }
 
   const abrirPapelera = () => {
     setModalPapelera(true)
@@ -334,8 +347,10 @@ function GestionLibros() {
       sorter: (a: any, b: any) => (a.anio || 0) - (b.anio || 0),
     },
     {
-      title: 'Categoría', dataIndex: 'categoria', key: 'categoria',
-      render: (cat: string) => <Tag color="cyan">{cat}</Tag>,
+      title: 'Programa', dataIndex: 'programa', key: 'programa',
+      render: (prog?: string) => prog
+        ? <Tag color="cyan">{prog}</Tag>
+        : <span style={{ color: '#CBD5E1' }}>—</span>,
     },
     {
       title: 'Total', dataIndex: 'totalEjemplares', key: 'total', width: 70,
@@ -384,6 +399,9 @@ function GestionLibros() {
               Papelera
             </Button>
           )}
+          <Button icon={<CopyOutlined />} onClick={abrirDuplicados}>
+            Ver duplicados
+          </Button>
           <Button icon={<FileExcelOutlined />} onClick={descargarPlantilla}>
             Descargar plantilla
           </Button>
@@ -524,6 +542,86 @@ function GestionLibros() {
               },
             ]}
           />
+        )}
+      </Modal>
+
+      <Modal
+        title="Posibles libros duplicados"
+        open={modalDuplicados}
+        onCancel={() => setModalDuplicados(false)}
+        footer={null}
+        width={760}
+      >
+        <p style={{ color: '#64748B', fontSize: 13, marginBottom: 16 }}>
+          Libros con el mismo título y autor que aparecen más de una vez. Suele
+          pasar cuando se creó una fila nueva en vez de editar la existente (por
+          ejemplo, al cambiar el programa). Revisa cada grupo y elimina la fila
+          que sobre.
+        </p>
+
+        {cargandoDuplicados ? (
+          <p style={{ textAlign: 'center', padding: 20, color: '#94A3B8' }}>Buscando duplicados...</p>
+        ) : duplicados.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 30 }}>
+            <BookOutlined style={{ fontSize: 40, color: '#00A9A5' }} />
+            <p style={{ marginTop: 12, color: '#12303A' }}>
+              No se encontraron libros duplicados. El catálogo está limpio.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: '#12303A' }}>
+              {duplicados.length} grupo(s) con posibles repetidos:
+            </p>
+            {duplicados.map((grupo, i) => (
+              <div key={i} style={{ border: '1px solid #FFE0A3', borderRadius: 10, padding: 12, background: '#FFFBF0' }}>
+                <div style={{ marginBottom: 8 }}>
+                  <strong style={{ color: '#12303A' }}>{grupo.titulo}</strong>
+                  <span style={{ color: '#94A3B8' }}> · {grupo.autor}</span>
+                  <Tag color="orange" style={{ marginLeft: 8 }}>{grupo.cantidad} copias</Tag>
+                </div>
+                <Table
+                  dataSource={grupo.libros}
+                  rowKey="id"
+                  pagination={false}
+                  size="small"
+                  columns={[
+                    { title: 'Código', dataIndex: 'codigo', width: 130 },
+                    {
+                      title: 'Programa', dataIndex: 'programa',
+                      render: (p?: string) => p ? <Tag color="cyan">{p}</Tag> : <span style={{ color: '#CBD5E1' }}>—</span>,
+                    },
+                    { title: 'Categoría', dataIndex: 'categoria' },
+                    {
+                      title: '', key: 'acc', width: 90,
+                      render: (_: any, libro: any) => (
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <Button size="small" icon={<EditOutlined />}
+                            onClick={() => { setModalDuplicados(false); abrirEditar(libro) }} />
+                          <Popconfirm
+                            title="¿Eliminar esta copia?"
+                            onConfirm={async () => {
+                              try {
+                                await eliminarLibro(libro.id)
+                                message.success('Copia eliminada')
+                                abrirDuplicados()
+                                cargarLibros()
+                              } catch {
+                                message.error('No se pudo eliminar')
+                              }
+                            }}
+                            okText="Sí" cancelText="No"
+                          >
+                            <Button size="small" danger icon={<DeleteOutlined />} />
+                          </Popconfirm>
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
+              </div>
+            ))}
+          </div>
         )}
       </Modal>
     </div>

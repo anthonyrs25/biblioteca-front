@@ -45,11 +45,15 @@ export const getCarreras = () =>
 export const actualizarUsuario = (id: number, data: Partial<{
   rfid: string
   nombre: string
+  apellidos: string
+  nombres: string
   iniciales: string
 }>) => api.patch(`/usuarios/${id}`, data).then(r => r.data)
 
 export const crearUsuario = (data: {
-  nombre: string
+  nombre?: string
+  apellidos?: string
+  nombres?: string
   iniciales?: string
   rfid?: string
   email?: string
@@ -152,6 +156,10 @@ export const conectarEscaneosRfid = (
 
 export const getLibros = () =>
   api.get('/libros').then(r => r.data)
+
+// Grupos de libros que parecen repetidos (mismo título y autor).
+export const getLibrosDuplicados = () =>
+  api.get('/libros/duplicados').then(r => r.data)
 
 export const getLibroByCodigo = (codigo: string) =>
   api.get(`/libros/codigo/${codigo}`).then(r => r.data)
@@ -299,6 +307,10 @@ export const actualizarActividad = (id: number, data: { nombre?: string; icono?:
 
 export const eliminarActividad = (id: number) =>
   api.delete(`/actividades/${id}`).then(r => r.data)
+
+// Borra el emoji de todas las actividades (deja icono en null). Solo admin.
+export const limpiarIconosActividades = () =>
+  api.post('/actividades/limpiar-iconos').then(r => r.data)
 
 // Reemplaza toda la asignación académica en una sola llamada atómica.
 // Sustituye la secuencia agregar/quitar carrera + actualizar ciclos.
