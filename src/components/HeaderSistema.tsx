@@ -16,6 +16,11 @@ interface Props {
 // Header del sistema, fijo y presente en todas las pantallas internas.
 // Antes vivía solo en la pantalla de inicio, lo que obligaba a volver
 // atrás para acceder a Reportes, Gestión o al registro manual.
+//
+// Distribución en tres zonas para repartir el espacio de forma pareja:
+//   - Izquierda: logo + nombre de la biblioteca
+//   - Centro:    navegación (Inicio, Reportes, Registro manual, Gestión)
+//   - Derecha:   estados y sesión (modo, Lector RFID, Salir)
 function HeaderSistema({ onAbrirRegistroManual }: Props) {
     const navigate = useNavigate()
     const {
@@ -48,29 +53,13 @@ function HeaderSistema({ onAbrirRegistroManual }: Props) {
 
     return (
         <div className="home-header header-fijo">
-            <div className="home-header-left" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema')}>
+            {/* ── Izquierda: identidad ── */}
+            <div className="header-zona-izq" style={{ cursor: 'pointer' }} onClick={() => navigate('/sistema')}>
                 <Logo />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, flexWrap: 'wrap' }}>
-                {esAdmin && (
-                    <div className={`modo-badge ${modoAdminActivo ? 'admin' : 'bibliotecario'}`}>
-                        <Tag color={modoAdminActivo ? 'gold' : 'cyan'} style={{ margin: 0 }}>
-                            {modoAdminActivo ? <><CrownOutlined /> Administrador</> : 'Bibliotecario'}
-                        </Tag>
-                        <Switch
-                            checked={modoAdminActivo}
-                            onChange={checked => checked ? activarModoAdmin() : volverAModoBibliotecario()}
-                            size="small"
-                        />
-                    </div>
-                )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: kiosco ? '#E0F2F1' : '#F5F7FA', padding: '6px 12px', borderRadius: 10 }}>
-                    <Tag color={kiosco ? 'cyan' : 'default'} style={{ margin: 0 }}>
-                        <WifiOutlined style={{ marginRight: 4 }} />
-                        Lector RFID
-                    </Tag>
-                    <Switch checked={kiosco} onChange={cambiarKiosco} size="small" />
-                </div>
+
+            {/* ── Centro: navegación ── */}
+            <nav className="header-zona-centro">
                 <Button onClick={() => navigate('/sistema')} icon={<HomeOutlined />} className="btn-reportes">
                     Inicio
                 </Button>
@@ -83,7 +72,30 @@ function HeaderSistema({ onAbrirRegistroManual }: Props) {
                 <Button onClick={() => navigate('/sistema/gestion')} icon={<SettingOutlined />} className="btn-reportes">
                     Gestión
                 </Button>
-                <Button onClick={handleLogout} icon={<LogoutOutlined />} className="btn-salir" style={{ marginLeft: 'auto' }}>
+            </nav>
+
+            {/* ── Derecha: estados y sesión ── */}
+            <div className="header-zona-der">
+                {esAdmin && (
+                    <div className={`modo-badge ${modoAdminActivo ? 'admin' : 'bibliotecario'}`}>
+                        <Tag color={modoAdminActivo ? 'gold' : 'cyan'} style={{ margin: 0 }}>
+                            {modoAdminActivo ? <><CrownOutlined /> Administrador</> : 'Bibliotecario'}
+                        </Tag>
+                        <Switch
+                            checked={modoAdminActivo}
+                            onChange={checked => checked ? activarModoAdmin() : volverAModoBibliotecario()}
+                            size="small"
+                        />
+                    </div>
+                )}
+                <div className="rfid-toggle" style={{ background: kiosco ? '#E0F2F1' : '#F5F7FA' }}>
+                    <Tag color={kiosco ? 'cyan' : 'default'} style={{ margin: 0 }}>
+                        <WifiOutlined style={{ marginRight: 4 }} />
+                        Lector RFID
+                    </Tag>
+                    <Switch checked={kiosco} onChange={cambiarKiosco} size="small" />
+                </div>
+                <Button onClick={handleLogout} icon={<LogoutOutlined />} className="btn-salir">
                     Salir
                 </Button>
             </div>
