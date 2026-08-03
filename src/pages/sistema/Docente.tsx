@@ -1,11 +1,21 @@
 import { useNavigate } from 'react-router-dom'
 import { Avatar, Tag, Divider, App } from 'antd'
-import { UserOutlined, BookOutlined, ReadOutlined, RollbackOutlined, ArrowLeftOutlined } from '@ant-design/icons'
+import { UserOutlined, BookOutlined, ReadOutlined, RollbackOutlined, ArrowLeftOutlined, IdcardOutlined } from '@ant-design/icons'
 
 interface Props {
   docente: any | null
 }
 
+// Etiqueta e identidad visual según el tipo real de la persona, para no
+// llamar "docente" a un estudiante o invitado.
+const META_TIPO: Record<string, { etiqueta: string; color: string; icono: any }> = {
+  DOCENTE: { etiqueta: 'Docente', color: 'cyan', icono: <IdcardOutlined /> },
+  ESTUDIANTE: { etiqueta: 'Estudiante', color: 'purple', icono: <ReadOutlined /> },
+  INVITADO: { etiqueta: 'Invitado', color: 'magenta', icono: <UserOutlined /> },
+}
+
+// Panel que aparece tras identificar a una persona (por RFID o registro).
+// Sirve para docentes, estudiantes e invitados — el contenido se adapta al tipo.
 function Docente({ docente }: Props) {
   const navigate = useNavigate()
   const { message } = App.useApp()
@@ -17,16 +27,18 @@ function Docente({ docente }: Props) {
     setTimeout(() => navigate(ruta), 500)
   }
 
-  // El backend devuelve docente.carreras como un array:
-  // [{ carrera: { nombre: 'Desarrollo de Software', ciclos: [...] } }, ...]
-  // Si el docente tiene varias carreras, las unimos en un solo texto separado por coma.
+  const tipo = docente.tipoPersona ?? 'DOCENTE'
+  const meta = META_TIPO[tipo] ?? META_TIPO.DOCENTE
+  const esInvitado = tipo === 'INVITADO'
+
+  // Carreras del backend: [{ carrera: { nombre, ciclos } }, ...]. Los invitados
+  // no tienen carrera, así que para ellos no se muestra esa línea.
   const nombresCarreras = docente.carreras
     ?.map((dc: any) => dc.carrera?.nombre)
     .filter(Boolean)
-    .join(' · ') || 'Sin carrera asignada'
+    .join(' · ') || (esInvitado ? '' : 'Sin carrera asignada')
 
-  // prestamosActivos viene directo del modelo Docente (campo numérico simple)
-  const prestamosActivos = docente.prestamosActivos ?? 0
+  const prestamosActivos = (docente.prestamos ?? []).filter((p: any) => p.activo).length
 
   return (
     <div className="page-wrapper">
@@ -40,10 +52,17 @@ function Docente({ docente }: Props) {
           </Avatar>
           <div>
             <h2 className="perfil-nombre">{docente.nombre}</h2>
-            <p className="perfil-depto">{nombresCarreras}</p>
-            <Tag style={{ background: 'rgba(13,148,136,0.1)', border: '1px solid rgba(13,148,136,0.3)', color: '#0d9488', borderRadius: 6 }}>
-              <UserOutlined style={{ marginRight: 4 }} />{docente.rfid}
-            </Tag>
+            {nombresCarreras && <p className="perfil-depto">{nombresCarreras}</p>}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+              <Tag color={meta.color} style={{ borderRadius: 6 }}>
+                {meta.icono} <span style={{ marginLeft: 4 }}>{meta.etiqueta}</span>
+              </Tag>
+              {docente.rfid && (
+                <Tag style={{ background: 'rgba(13,148,136,0.1)', border: '1px solid rgba(13,148,136,0.3)', color: '#0d9488', borderRadius: 6 }}>
+                  <UserOutlined style={{ marginRight: 4 }} />{docente.rfid}
+                </Tag>
+              )}
+            </div>
           </div>
         </div>
         <Divider style={{ borderColor: 'rgba(0,0,0,0.06)' }} />

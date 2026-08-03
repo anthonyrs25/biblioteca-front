@@ -101,7 +101,7 @@ function DocentePanel({ docente, onCerrar, onIr }: {
     ?.map((dc: any) => dc.carrera?.nombre)
     .filter(Boolean)
     .join(' · ') || 'Sin carrera asignada'
-  const prestamosActivos = docente.prestamosActivos ?? 0
+  const prestamosActivos = (docente.prestamos ?? []).filter((p: any) => p.activo).length
 
   // El certificado se emite desde aquí porque es donde la persona ya está
   // identificada: obligar a buscarla de nuevo en Gestión sería redundante.
